@@ -17,6 +17,8 @@ qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
 - **SSH** : `ssh -p 2222 root@localhost`
 - **Mot de passe root test** : `stageneth`
 
+> **Avertissement sécurité** : le mot de passe `stageneth` est un mot de passe de test/documentaire. En production, connectez-vous en SSH dès le premier boot et changez-le avec `passwd`.
+
 ## Vérifications
 
 - `nginx`, `stageneth-api` et `stageneth-network` sont running

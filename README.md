@@ -47,7 +47,7 @@ Voir [docs/testing.md](docs/testing.md) pour la checklist complète.
 
 ## Notes
 
-- L'image de test définit un mot de passe root connu (`stageneth`) et génère un secret JWT aléatoire au premier démarrage. **Ne pas utiliser en production telle quelle.**
+- L'image de test définit un mot de passe root connu (`stageneth`) et génère un secret JWT aléatoire au premier démarrage. **En production, changez impérativement ce mot de passe dès le premier lancement.**
 - Le répertoire `openwrt/` est un arbre de build complet et est ignoré par git.
 
 ## Licence
