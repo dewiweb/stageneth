@@ -24,6 +24,10 @@ RUN apt-get update \
         python-is-python3 \
         perl \
         which \
+        patch \
+        diffutils \
+        bzip2 \
+        xz-utils \
         rsync \
         swig \
         unzip \
@@ -38,6 +42,10 @@ RUN apt-get update \
         vim \
         golang-go \
     && rm -rf /var/lib/apt/lists/*
+
+RUN if [ ! -e /usr/bin/which ] && [ -f /usr/bin/which.debianutils ]; then \
+    ln -sf /usr/bin/which.debianutils /usr/local/bin/which; \
+fi
 
 RUN groupadd -g 1000 'buildbot' \
     && useradd -m -s '/bin/bash' -u 1000 -g 1000 'buildbot' \
