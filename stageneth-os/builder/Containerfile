@@ -1,0 +1,82 @@
+#
+# Copyright (C) 2026 StageNeth Contributors
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+FROM debian:13.4 AS base
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends --no-install-suggests \
+        bison \
+        build-essential \
+        clang \
+        file \
+        flex \
+        g++ \
+        g++-multilib \
+        gawk \
+        gcc-multilib \
+        gettext \
+        git \
+        libncurses5-dev \
+        libssl-dev \
+        python3-setuptools \
+        rsync \
+        swig \
+        unzip \
+        wget \
+        zlib1g-dev \
+        ca-certificates \
+        cmake \
+        curl \
+        less \
+        quilt \
+        sudo \
+        vim \
+        golang-go \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd -g 1000 'buildbot' \
+    && useradd -m -s '/bin/bash' -u 1000 -g 1000 'buildbot' \
+    && echo 'buildbot ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/buildbot
+
+USER buildbot
+WORKDIR /home/buildbot
+
+ARG OWRT_VERSION
+RUN git clone --branch "${OWRT_VERSION}" https://github.com/openwrt/openwrt.git
+WORKDIR /home/buildbot/openwrt
+
+RUN ./scripts/feeds update -a
+COPY --chmod=777 builder/apply-patches.sh /usr/local/bin/apply-patches
+RUN /usr/local/bin/apply-patches || true
+
+RUN sed -i '1isrc-link stageneth /home/buildbot/openwrt/stageneth-packages' feeds.conf.default
+COPY --chown=buildbot:buildbot packages stageneth-packages/
+RUN ./scripts/feeds update stageneth
+RUN ./scripts/feeds install -a
+
+COPY --chown=buildbot:buildbot files files/
+COPY --chown=buildbot:buildbot config config/
+
+ARG REPO_CHANNEL
+ARG TARGET
+ARG STAGENETH_VERSION
+ARG BUILD_SEMVER_SUFFIX
+COPY --chmod=777 builder/configure-build.sh /usr/local/bin/configure-build
+RUN /usr/local/bin/configure-build
+COPY --chmod=777 builder/entrypoint.sh /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT [ "/usr/local/bin/entrypoint.sh" ]
+
+RUN mkdir -p \
+        .ccache \
+        build_dir \
+        dl \
+        download \
+        staging_dir
+
+VOLUME "/home/buildbot/openwrt/.ccache" \
+        "/home/buildbot/openwrt/build_dir" \
+        "/home/buildbot/openwrt/dl" \
+        "/home/buildbot/openwrt/download" \
+        "/home/buildbot/openwrt/staging_dir"

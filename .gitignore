@@ -1,0 +1,27 @@
+# Build artifacts
+*.img
+*.img.gz
+*.squashfs
+*.bin
+*.tar.gz
+*.ipk
+
+# Dependencies and build dirs
+node_modules/
+dist/
+build_dir/
+bin/
+tmp/
+.cache/
+
+# Local env
+.env
+.env.development
+.env.production
+.env.*.local
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+*~

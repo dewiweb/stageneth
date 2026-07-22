@@ -1,0 +1,38 @@
+config stageneth 'globals'
+	option enabled '1'
+
+config service 'dante'
+	option vlan_id '20'
+	option description 'Audio Dante/AES67'
+	option priority '7'
+	option dscp '46'
+	option ptp '1'
+	option multicast '1'
+
+config service 'sacn'
+	option vlan_id '30'
+	option description 'sACN/Art-Net lighting'
+	option priority '5'
+	option dscp '0'
+	option ptp '0'
+	option multicast '1'
+
+config service 'ndi'
+	option vlan_id '40'
+	option description 'NewTek NDI video'
+	option priority '6'
+	option dscp '34'
+	option ptp '1'
+	option multicast '1'
+
+config binding 'eth1_dante'
+	option interface 'eth1'
+	option service 'dante'
+
+config binding 'eth2_sacn'
+	option interface 'eth2'
+	option service 'sacn'
+
+config forwarding 'dante_to_mgmt'
+	option src 'dante'
+	option dest 'mgmt'
