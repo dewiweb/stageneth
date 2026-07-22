@@ -39,6 +39,22 @@ jobs:
       - name: Build StageNeth image
         run: ./build-stageneth.sh
 
+      - name: List build outputs
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "=== bin contents ==="
+          ls -R bin || true
+          echo "=== images count ==="
+          find bin/targets -type f 2>/dev/null | wc -l
+
+      - name: Verify OS images were built
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          test -d bin/targets
+          test -n "$(find bin/targets -type f -name '*.img*' -o -name '*.tar*' -o -name '*.vmdk' -o -name '*.vhdx' 2>/dev/null)" || {
+            echo "ERROR: no OS image files found in bin/targets"; exit 1;
+          }
+
       - name: Upload build artifacts
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
