@@ -49,7 +49,6 @@ done
 
 ${RUNTIME} build \
     --force-rm \
-    --layers \
     --file builder/Containerfile \
     --tag stageneth-next \
     --build-arg OWRT_VERSION="$OWRT_VERSION" \
