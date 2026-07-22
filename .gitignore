@@ -5,23 +5,32 @@
 *.bin
 *.tar.gz
 *.ipk
+*.log
 
-# Dependencies and build dirs
-node_modules/
-dist/
-build_dir/
-bin/
-tmp/
-.cache/
+# OpenWrt build tree
+/openwrt/
+/v24.10.5/
+/build_dir/
+/staging_dir/
+/bin/
+/dl/
+/tmp/
+/.ccache/
+
+# Dependencies
+/node_modules/
+/dist/
 
 # Local env
 .env
-.env.development
-.env.production
-.env.*.local
+.env.*
+!.env.sample
 
 # IDE/OS
 .vscode/
 .idea/
 .DS_Store
 *~
+
+# Compiled binaries
+/packages/stageneth-api/files/stageneth-api

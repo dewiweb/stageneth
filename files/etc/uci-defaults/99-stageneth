@@ -1,0 +1,21 @@
+#!/bin/sh
+# StageNeth first-boot defaults
+
+# Set root password to 'stageneth' for test image
+hash='$1$stagenet$CYrKd38gWkJlOcsKAu/UN0'
+sed -i "s|^root:[^:]*:|root:${hash}:|" /etc/shadow
+
+# Generate random JWT secret
+secret=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+uci set stageneth-api.main.secret="$secret"
+uci commit stageneth-api
+
+# Set StageNeth hostname
+uci set system.@system[0].hostname="StageNeth"
+uci commit system
+
+# Ensure services start at boot
+/etc/init.d/nginx enable
+/etc/init.d/stageneth-api enable
+
+exit 0

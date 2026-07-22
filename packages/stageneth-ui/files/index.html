@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StageNeth</title>
+  <script>tailwind = { config: { darkMode: 'class' } }</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="bg-gray-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-300">
+  <div id="app" class="min-h-screen flex flex-col">
+    <header class="bg-slate-900 dark:bg-slate-950 text-white p-4 shadow flex justify-between items-center border-b border-slate-700">
+      <div class="flex items-center gap-3">
+        <svg class="w-8 h-8 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <defs>
+            <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          <circle cx="12" cy="12" r="5" fill="url(#logoGrad)" fill-opacity="0.4" stroke="url(#logoGrad)"/>
+          <circle cx="12" cy="12" r="2" fill="url(#logoGrad)"/>
+          <circle cx="5" cy="5" r="1.5" fill="url(#logoGrad)"/>
+          <circle cx="19" cy="5" r="1.5" fill="url(#logoGrad)"/>
+          <circle cx="5" cy="19" r="1.5" fill="url(#logoGrad)"/>
+          <circle cx="19" cy="19" r="1.5" fill="url(#logoGrad)"/>
+          <path d="M5 5l7 7" stroke="url(#logoGrad)" stroke-opacity="0.6"/>
+          <path d="M19 5l-7 7" stroke="url(#logoGrad)" stroke-opacity="0.6"/>
+          <path d="M5 19l7-7" stroke="url(#logoGrad)" stroke-opacity="0.6"/>
+          <path d="M19 19l-7-7" stroke="url(#logoGrad)" stroke-opacity="0.6"/>
+          <circle cx="12" cy="12" r="7" stroke="url(#logoGrad)" stroke-opacity="0.3" stroke-dasharray="2 2"/>
+        </svg>
+        <h1 class="text-xl font-bold tracking-tight">StageNeth</h1>
+        <span v-if="hasPendingChanges" class="hidden md:inline text-xs bg-orange-600 text-white px-2 py-1 rounded-full animate-pulse"><i class="fas fa-circle mr-1"></i>pending</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button v-if="token" @click="refresh(); fetchMonitoring();" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" title="Refresh data"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+        <button v-if="token" @click="toggleTheme" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" :title="isDark ? 'Light mode' : 'Dark mode'">
+          <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
+        </button>
+        <button v-if="token" @click="logout" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600"><i class="fas fa-sign-out-alt mr-1"></i> Logout</button>
+      </div>
+    </header>
+
+    <div v-if="message" class="fixed top-4 right-4 z-50 px-4 py-3 rounded shadow-lg text-sm font-semibold transition-all" :class="messageType==='error' ? 'bg-red-600 text-white' : messageType==='success' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'">{{ message }}</div>
+    <div v-if="isLoading" class="fixed inset-0 bg-black/40 z-50 flex flex-col items-center justify-center text-white">
+      <i class="fas fa-spinner fa-spin text-4xl mb-3"></i>
+      <p class="text-sm font-semibold">Loading...</p>
+    </div>
+
+    <main class="flex-1 flex">
+      <button v-if="token" @click="mobileMenuOpen=!mobileMenuOpen" class="md:hidden fixed top-4 right-16 z-50 text-white p-2 rounded bg-slate-800"><i class="fas fa-bars"></i></button>
+      <div v-if="token && mobileMenuOpen" @click="mobileMenuOpen=false" class="md:hidden fixed inset-0 bg-black/50 z-30"></div>
+      <aside v-if="token" :class="['bg-slate-900 dark:bg-slate-950 border-r border-slate-700 p-4 space-y-4 transition-transform duration-200 md:translate-x-0 md:static md:block', mobileMenuOpen ? 'fixed inset-y-0 left-0 z-40 w-64 translate-x-0' : 'fixed inset-y-0 left-0 z-40 w-64 -translate-x-full md:translate-x-0 md:w-56 md:static']">
+        <div v-for="g in tabGroups" :key="g.label">
+          <p class="text-xs uppercase text-slate-500 font-semibold mb-2 tracking-wider">{{ g.label }}</p>
+          <div class="space-y-1">
+            <button v-for="t in g.tabs" :key="t.key" @click="currentTab=t.key"
+              :class="{'bg-blue-600 font-semibold shadow': currentTab===t.key}"
+              class="w-full text-left px-3 py-2 rounded text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-3 transition">
+              <i :class="t.icon" class="w-5 text-center"></i>{{ t.label }}
+              <span v-if="t.key==='services' && servicesCount" class="ml-auto text-xs bg-slate-700 text-white px-2 py-0.5 rounded-full">{{ servicesCount }}</span>
+              <span v-if="t.key==='monitoring' && leasesCount" class="ml-auto text-xs bg-slate-700 text-white px-2 py-0.5 rounded-full">{{ leasesCount }}</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="flex-1 p-6 max-w-6xl mx-auto w-full">
+        <div v-if="!token" class="max-w-sm mx-auto bg-slate-50 dark:bg-slate-800 p-6 rounded shadow dark:shadow-xl border border-slate-200 dark:border-slate-700">
+          <div class="flex items-center gap-3 mb-6">
+            <svg class="w-10 h-10 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-100">StageNeth</h2>
+          </div>
+          <input v-model="username" placeholder="username" class="w-full mb-3 p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+          <input v-model="password" type="password" placeholder="password" class="w-full mb-4 p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+          <button @click="login" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 font-semibold"><i class="fas fa-lock mr-2"></i>Login</button>
+          <p v-if="error" class="text-red-600 dark:text-red-400 mt-2 text-sm">{{ error }}</p>
+        </div>
+
+        <div v-else>
+          <div v-if="['services','network','dhcpdns','firewall'].includes(currentTab)" class="mb-4 flex flex-wrap gap-2">
+            <button @click="apply" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Apply StageNeth</button>
+            <button @click="reload" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Reload services</button>
+          </div>
+          <div v-if="hasPendingChanges" class="mb-4 p-3 rounded border-l-4 border-orange-500 bg-orange-50 dark:bg-orange-900 text-orange-800 dark:text-orange-100 flex justify-between items-center">
+            <span><i class="fas fa-exclamation-triangle mr-2"></i>Des modifications sont en attente. Cliquez sur Save & Apply pour les appliquer au réseau/DHCP/firewall.</span>
+            <button @click="apply" class="bg-orange-600 text-white px-4 py-1.5 rounded hover:bg-orange-700 font-semibold">Save & Apply</button>
+          </div>
+          <!-- messages affichés via toast en haut de page -->
+
+          <!-- Simple dashboard -->
+          <div v-if="currentTab==='simple'">
+            <h2 class="text-2xl font-bold mb-4">Tableau de bord</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 items-start">
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow col-span-2 md:col-span-1 md:row-span-2">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Storage</p>
+                <p class="text-2xl font-semibold">{{ formatPercent(monitoring.storage?.used_percent) }}</p>
+                <p class="text-xs text-slate-400 dark:text-slate-500">{{ formatBytes((monitoring.storage?.used_kb || 0)*1024) }} / {{ formatBytes((monitoring.storage?.total_kb || 0)*1024) }}</p>
+                <div v-if="monitoring.storage?.partitions" class="mt-3 space-y-1.5">
+                  <div v-for="p in monitoring.storage.partitions" :key="p.mount">
+                    <div class="flex justify-between text-xs mb-0.5">
+                      <span class="truncate max-w-[70%]">{{ p.mount }}</span>
+                      <span>{{ formatPercent(p.used_percent) }}</span>
+                    </div>
+                    <div class="w-full bg-slate-200 dark:bg-slate-700 rounded h-2 overflow-hidden">
+                      <div class="h-2 rounded" :class="p.used_percent > 90 ? 'bg-red-500' : p.used_percent > 70 ? 'bg-yellow-500' : 'bg-emerald-500'" :style="{ width: Math.min(p.used_percent, 100) + '%' }"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">CPU</p>
+                <p class="text-2xl font-semibold">{{ formatPercent(monitoring.cpu_percent) }}</p>
+                <svg viewBox="0 0 100 30" class="w-full h-8 mt-2 text-blue-500" preserveAspectRatio="none">
+                  <polyline :points="sparklinePoints(monitoringHistory.cpu)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Memory</p>
+                <p class="text-2xl font-semibold">{{ formatPercent(monitoring.memory?.used_percent) }}</p>
+                <svg viewBox="0 0 100 30" class="w-full h-8 mt-2 text-purple-500" preserveAspectRatio="none">
+                  <polyline :points="sparklineAuto(monitoringHistory.memory)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">DHCP leases</p>
+                <p class="text-2xl font-semibold">{{ (monitoring.dhcp_leases || []).length }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Uptime</p>
+                <p class="text-2xl font-semibold">{{ formatUptime(monitoring.uptime_seconds) }}</p>
+              </div>
+            </div>
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
+              <h3 class="text-md font-semibold mb-3">Configuration rapide</h3>
+              <div class="flex gap-2 mb-4">
+                <select v-model="selectedPreset" @change="onPresetChange" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                  <option value="">Choisir un preset...</option>
+                  <option v-for="p in presets" :key="p.name" :value="p.name">{{ p.label }}</option>
+                </select>
+                <button @click="applyPreset" :disabled="!selectedPreset" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Appliquer</button>
+              </div>
+              <p v-if="selectedPreset" class="text-sm text-slate-500 dark:text-slate-400 mb-4">{{ presets.find(p => p.name === selectedPreset)?.description || '' }}</p>
+              <div v-if="selectedPreset" class="mb-4">
+                <p class="text-sm font-semibold mb-2">Protocoles à activer :</p>
+                <div class="flex flex-wrap gap-3">
+                  <label v-for="svc in (currentPreset.services || [])" :key="svc" class="inline-flex items-center gap-1 text-sm">
+                    <input type="checkbox" :value="svc" v-model="selectedPresetServices" class="accent-blue-600"> {{ svc }}
+                  </label>
+                </div>
+              </div>
+              <button v-if="hasPendingChanges" @click="apply" class="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 w-full font-semibold">Save & Apply</button>
+            </div>
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h3 class="text-md font-semibold mb-2">VLANs / Services actifs</h3>
+              <ul class="text-sm space-y-1">
+                <li v-for="(s, name) in services" :key="name"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }} <span class="text-slate-500 dark:text-slate-400">VLAN {{ s.vlan_id }}</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Services -->
+          <div v-if="currentTab==='services'">
+            <h2 class="text-lg font-semibold mb-3">Services</h2>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
+              <h3 class="text-md font-semibold mb-2">VLAN presets</h3>
+              <div class="flex gap-2">
+                <select v-model="selectedPreset" @change="onPresetChange" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                  <option value="">Select a preset...</option>
+                  <option v-for="p in presets" :key="p.name" :value="p.name">{{ p.label }}</option>
+                </select>
+                <button @click="applyPreset" :disabled="!selectedPreset" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Apply</button>
+              </div>
+              <p v-if="selectedPreset" class="text-sm text-slate-500 dark:text-slate-400 mt-2">{{ presets.find(p => p.name === selectedPreset)?.description || '' }}</p>
+              <div v-if="selectedPreset" class="mt-2">
+                <p class="text-sm font-semibold mb-1">Services to apply:</p>
+                <div class="flex flex-wrap gap-3">
+                  <label v-for="svc in (currentPreset.services || [])" :key="svc" class="inline-flex items-center gap-1 text-sm">
+                    <input type="checkbox" :value="svc" v-model="selectedPresetServices" class="accent-blue-600"> {{ svc }}
+                  </label>
+                </div>
+              </div>
+            </div>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">VLAN</th><th class="p-2">DSCP</th><th class="p-2">Priority</th><th class="p-2">PTP</th><th class="p-2">Multicast</th><th class="p-2">Untagged</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in services" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.vlan_id" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.vlan_id }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.dscp" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.dscp }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.priority" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.priority }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.ptp" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.ptp ? 'yes' : 'no' }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.multicast" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.multicast ? 'yes' : 'no' }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.untagged" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.untagged === '1' ? 'yes' : 'no' }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'service'" @click="addService" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('service', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="grid grid-cols-8 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
+              <input v-model="newService.name" placeholder="name" required class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.vlan_id" placeholder="vlan" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.dscp" placeholder="dscp" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.priority" placeholder="prio" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newService.ptp" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">ptp</option><option value="0">no ptp</option></select>
+              <select v-model="newService.multicast" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">multicast</option><option value="0">no</option></select>
+              <select v-model="newService.untagged" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">untagged</option><option value="0">tagged</option></select>
+              <button @click="addService" :disabled="!newService.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </div>
+
+            <h2 class="text-lg font-semibold mb-3">Bindings</h2>
+            <ul class="bg-white dark:bg-slate-800 rounded shadow p-4 text-sm mb-4 space-y-1">
+              <li v-for="(b, name) in bindings" :key="name" class="flex justify-between border-b py-1">
+                <span v-if="!(editing.name === name && editing.type === 'binding')">{{ name }}: <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(b.interface)"></span>{{ b.interface }} &rarr; <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(b.service)"></span>{{ b.service }}</span>
+                <span v-else class="flex gap-2"><input v-model="newBinding.interface" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><select v-model="newBinding.service" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option v-for="(_, n) in services" :value="n">{{ n }}</option></select></span>
+                <span><button v-if="editing.name === name && editing.type === 'binding'" @click="addBinding" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('binding', name, b)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></span>
+              </li>
+            </ul>
+            <div class="flex gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newBinding.name" placeholder="binding name" required class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newBinding.interface" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option v-for="iface in physicalInterfaces" :value="iface">{{ iface }}</option>
+              </select>
+              <select v-model="newBinding.service" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option v-for="(_, n) in services" :value="n">{{ n }}</option>
+              </select>
+              <button @click="addBinding" :disabled="!newBinding.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </div>
+
+            <h2 class="text-lg font-semibold mb-3 mt-6">Forwardings</h2>
+            <ul class="bg-white dark:bg-slate-800 rounded shadow p-4 text-sm mb-4 space-y-1">
+              <li v-for="(f, name) in forwardings" :key="name" class="flex justify-between border-b py-1">
+                <span v-if="!(editing.name === name && editing.type === 'forwarding')">{{ name }}: <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(f.src)"></span>{{ f.src }} &rarr; <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(f.dest)"></span>{{ f.dest }} ({{ f.enabled==='0'?'disabled':'enabled' }})</span>
+                <span v-else class="flex gap-2"><select v-model="newForwarding.src" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="">src</option><option v-for="(_, n) in services" :value="n">{{ n }}</option></select><select v-model="newForwarding.dest" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="">dest</option><option v-for="(_, n) in services" :value="n">{{ n }}</option></select><select v-model="newForwarding.enabled" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">enabled</option><option value="0">disabled</option></select></span>
+                <span><button v-if="editing.name === name && editing.type === 'forwarding'" @click="addForwarding" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('forwarding', name, f)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></span>
+              </li>
+            </ul>
+            <div class="flex gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newForwarding.name" placeholder="name" required class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newForwarding.src" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option value="">src zone</option>
+                <option v-for="(_, n) in services" :value="n">{{ n }}</option>
+              </select>
+              <select v-model="newForwarding.dest" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option value="">dest zone</option>
+                <option v-for="(_, n) in services" :value="n">{{ n }}</option>
+              </select>
+              <button @click="addForwarding" :disabled="!newForwarding.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </div>
+          </div>
+
+          <!-- Network -->
+          <div v-if="currentTab==='network'" class="space-y-6">
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">StageNeth Services Network</h2>
+              <p class="text-xs text-slate-500 mb-2">Overview of auto-generated network objects per StageNeth service</p>
+              <table class="w-full text-left text-sm mb-4">
+                <thead class="border-b">
+                  <tr>
+                    <th class="p-2">Service</th>
+                    <th class="p-2">VLAN ID</th>
+                    <th class="p-2">Interface / IP</th>
+                    <th class="p-2">Bridge</th>
+                    <th class="p-2">Bridge Ports</th>
+                    <th class="p-2">VLAN Device</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(s, name) in serviceNetworks" :key="name" class="border-b last:border-0">
+                    <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                    <td class="p-2">{{ s.vlan_id }}</td>
+                    <td class="p-2"><span class="font-mono text-xs">{{ s.interface }}</span><br><span class="text-xs text-slate-500">{{ s.ip }} / {{ s.netmask }}</span></td>
+                    <td class="p-2 font-mono text-xs">{{ s.bridge }}</td>
+                    <td class="p-2 font-mono text-xs">{{ s.bridgePorts }}</td>
+                    <td class="p-2 font-mono text-xs">{{ s.vlan }} <span v-if="s.vlan !== '-'" class="text-slate-500">on {{ s.vlanParent }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">Physical NICs</h2>
+              <p class="text-xs text-slate-500 mb-2">Network cards detected on the system</p>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="iface in physicalInterfaces" :key="iface" class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700 text-sm font-mono">{{ iface }}</span>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">Logical Interfaces</h2>
+              <p class="text-xs text-slate-500 mb-2">Interfaces with IP configuration (lan, wan, loopback, StageNeth services)</p>
+              <table class="w-full text-left text-sm mb-4">
+                <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Proto</th><th class="p-2">IP / Netmask</th><th class="p-2">Device</th><th class="p-2"></th></tr></thead>
+                <tbody>
+                  <tr v-for="(s, name) in networkInterfaces" :key="name" class="border-b last:border-0">
+                    <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                    <td class="p-2"><select v-if="editing.name === name && editing.type === 'interface'" v-model="newInterface.proto" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="static">static</option><option value="dhcp">dhcp</option><option value="none">none</option></select><span v-else>{{ s.proto }}</span></td>
+                    <td class="p-2"><span v-if="editing.name === name && editing.type === 'interface'" class="flex gap-1"><input v-model="newInterface.ipaddr" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><input v-model="newInterface.netmask" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /></span><span v-else>{{ s.ipaddr }} / {{ s.netmask }}</span></td>
+                    <td class="p-2"><input v-if="editing.name === name && editing.type === 'interface'" v-model="newInterface.device" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.device }}</span></td>
+                    <td class="p-2"><button v-if="editing.name === name && editing.type === 'interface'" @click="addInterface" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('interface', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('network', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="grid grid-cols-6 gap-2">
+                <input v-model="newInterface.name" placeholder="name" required class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <select v-model="newInterface.proto" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="static">static</option><option value="dhcp">dhcp</option><option value="none">none</option></select>
+                <input v-model="newInterface.ipaddr" placeholder="ip" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <input v-model="newInterface.netmask" placeholder="mask" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <input v-model="newInterface.device" placeholder="device" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <button @click="addInterface" :disabled="!newInterface.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <h2 class="text-lg font-semibold mb-3">Bridges</h2>
+                <p class="text-xs text-slate-500 mb-2">Software switches grouping ports</p>
+                <table class="w-full text-left text-sm mb-4">
+                  <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Ports</th><th class="p-2"></th></tr></thead>
+                  <tbody>
+                    <tr v-for="(s, name) in bridges" :key="name" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                      <td class="p-2 font-mono text-xs">{{ s.ports || '-' }}</td>
+                      <td class="p-2"><button @click="startEdit('device', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('network', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <h2 class="text-lg font-semibold mb-3">VLANs (8021q)</h2>
+                <p class="text-xs text-slate-500 mb-2">Tagged virtual interfaces</p>
+                <table class="w-full text-left text-sm mb-4">
+                  <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">VID</th><th class="p-2">Parent</th><th class="p-2"></th></tr></thead>
+                  <tbody>
+                    <tr v-for="(s, name) in vlans" :key="name" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                      <td class="p-2">{{ s.vid || '-' }}</td>
+                      <td class="p-2 font-mono text-xs">{{ s.ifname || '-' }}</td>
+                      <td class="p-2"><button @click="startEdit('device', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('network', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">Add Bridge or VLAN</h2>
+              <div class="grid grid-cols-5 gap-2 items-end">
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Device name</label>
+                  <input v-model="newDevice.name" placeholder="e.g. eth0.21" required class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Type</label>
+                  <select v-model="newDevice.type" class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="8021q">8021q vlan</option><option value="bridge">bridge</option></select>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">VLAN ID / Ports</label>
+                  <input v-model="newDevice.vid" placeholder="e.g. 21" class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Parent interface</label>
+                  <input v-model="newDevice.ifname" placeholder="e.g. eth0" class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <button @click="addDevice" :disabled="!newDevice.name" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+                </div>
+              </div>
+              <p class="text-xs text-slate-500 mt-2">For a VLAN: name=eth0.21, type=8021q, VLAN ID=21, parent=eth0. For a bridge: name=br_mgmt, type=bridge, ports=eth0.10 eth0.20, parent empty.</p>
+            </div>
+          </div>
+          <!-- DHCP & DNS -->
+          <div v-if="currentTab==='dhcpdns'">
+            <h2 class="text-lg font-semibold mb-3">DHCP pools</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Interface</th><th class="p-2">Start</th><th class="p-2">Limit</th><th class="p-2">Leasetime</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in dhcpPools" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.interface" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.interface)"></span>{{ s.interface }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.start" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.start }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.limit" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.limit }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.leasetime" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.leasetime }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'dhcp'" @click="addDhcp" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('dhcp', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('dhcp', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="grid grid-cols-6 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newDhcp.name" placeholder="name" required class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.interface" placeholder="interface" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.start" placeholder="start" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.limit" placeholder="limit" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.leasetime" placeholder="12h" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <button @click="addDhcp" :disabled="!newDhcp.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </div>
+
+            <h2 class="text-lg font-semibold mb-3 mt-6">Static hosts / DNS</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Hostname</th><th class="p-2">MAC</th><th class="p-2">IP</th><th class="p-2">DNS</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in staticLeases" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.name)"></span>{{ s.name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'host'" v-model="newHost.mac" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.mac }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'host'" v-model="newHost.ip" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.ip }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'host'" v-model="newHost.dns" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.dns === '0' ? 'no' : 'yes' }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'host'" @click="addHost" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('host', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('dhcp', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="grid grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newHost.name" placeholder="hostname" required class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newHost.mac" placeholder="mac" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newHost.ip" placeholder="ip" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newHost.dns" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">dns yes</option><option value="0">dns no</option></select>
+              <button @click="addHost" :disabled="!newHost.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </div>
+          </div>
+
+          <!-- DNS dans le même onglet -->
+          <div v-if="currentTab==='dhcpdns'">
+            <h2 class="text-lg font-semibold mb-3">DNS / Dnsmasq</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Domain</th><th class="p-2">Local</th><th class="p-2">DNS servers</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in dnsSections" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dns'" v-model="newDns.domain" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.domain }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dns'" v-model="newDns.local" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.local }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dns'" v-model="newDns.server" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.server }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'dns'" @click="addDns" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('dns', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('dhcp', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="grid grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newDns.name" placeholder="name" required class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDns.domain" placeholder="domain" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDns.local" placeholder="local (/lan)" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDns.server" placeholder="servers" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <button @click="addDns" :disabled="!newDns.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </div>
+          </div>
+
+          <!-- Firewall zones -->
+          <div v-if="currentTab==='firewall'">
+            <h2 class="text-lg font-semibold mb-3">Firewall zones</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Networks</th><th class="p-2">Input</th><th class="p-2">Output</th><th class="p-2">Forward</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in firewallZones" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.name)"></span>{{ s.name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.network" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.network)"></span>{{ s.network }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.input" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select><span v-else>{{ s.input }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.output" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select><span v-else>{{ s.output }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.forward" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select><span v-else>{{ s.forward }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'zone'" @click="addZone" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('zone', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('firewall', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="grid grid-cols-6 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
+              <input v-model="newZone.name" placeholder="name" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newZone.network" placeholder="networks" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newZone.input" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <select v-model="newZone.output" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <select v-model="newZone.forward" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <button @click="addZone" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Add</button>
+            </div>
+
+            <h2 class="text-lg font-semibold mb-3">Inter-zone forwarding</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Source</th><th class="p-2">Destination</th><th class="p-2">Enabled</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in firewallForwardings" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium">{{ name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'fwforwarding'" v-model="newFwForwarding.src" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.src)"></span>{{ s.src }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'fwforwarding'" v-model="newFwForwarding.dest" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.dest)"></span>{{ s.dest }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'fwforwarding'" v-model="newFwForwarding.enabled" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">enabled</option><option value="0">disabled</option></select><span v-else>{{ s.enabled }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'fwforwarding'" @click="addFwForwarding" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('fwforwarding', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('firewall', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="grid grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newFwForwarding.name" placeholder="name" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newFwForwarding.src" placeholder="src" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newFwForwarding.dest" placeholder="dest" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newFwForwarding.enabled" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">enabled</option><option value="0">disabled</option></select>
+              <button @click="addFwForwarding" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Add</button>
+            </div>
+
+            <h2 class="text-lg font-semibold mb-3 mt-6">Firewall rules</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Source</th><th class="p-2">Proto</th><th class="p-2">Port</th><th class="p-2">Target</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in firewallRules" :key="name" class="border-b last:border-0">
+                  <template v-if="editing.name === name && editing.type === 'rule'">
+                    <td class="p-2"><input v-model="newRule.name" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><input v-model="newRule.src" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><input v-model="newRule.proto" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><input v-model="newRule.dest_port" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><select v-model="newRule.target" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select></td>
+                    <td class="p-2"><button @click="addRule" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button @click="editing={type:'',name:''}" class="text-slate-600 dark:text-slate-400 hover:underline">cancel</button></td>
+                  </template>
+                  <template v-else>
+                    <td class="p-2 font-medium">{{ s.name || name }}</td>
+                    <td class="p-2"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.src)"></span>{{ s.src }}</td>
+                    <td class="p-2">{{ s.proto }}</td>
+                    <td class="p-2">{{ s.dest_port }}</td>
+                    <td class="p-2">{{ s.target }}</td>
+                    <td class="p-2"><button @click="startEdit('rule', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('firewall', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
+            <div class="grid grid-cols-6 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newRule.name" placeholder="name" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newRule.src" placeholder="src zone" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newRule.proto" placeholder="proto" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newRule.dest_port" placeholder="port" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newRule.target" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <button @click="addRule" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Add</button>
+            </div>
+          </div>
+
+          <!-- Monitoring -->
+          <div v-if="currentTab==='monitoring'">
+            <h2 class="text-lg font-semibold mb-3">Monitoring</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">CPU</p>
+                <p class="text-2xl font-semibold">{{ formatPercent(monitoring.cpu_percent) }}</p>
+                <svg viewBox="0 0 100 30" class="w-full h-8 mt-2 text-blue-500" preserveAspectRatio="none">
+                  <polyline :points="sparklinePoints(monitoringHistory.cpu)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Load</p>
+                <p class="text-2xl font-semibold">{{ monitoring.load ?? '-' }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Uptime</p>
+                <p class="text-2xl font-semibold">{{ formatUptime(monitoring.uptime_seconds) }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Memory</p>
+                <p class="text-2xl font-semibold">{{ formatPercent(monitoring.memory?.used_percent) }}</p>
+                <svg viewBox="0 0 100 30" class="w-full h-8 mt-2 text-purple-500" preserveAspectRatio="none">
+                  <polyline :points="sparklineAuto(monitoringHistory.memory)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+                <p class="text-xs text-slate-400 dark:text-slate-500">{{ formatBytes((monitoring.memory?.used_kb || 0)*1024) }} / {{ formatBytes((monitoring.memory?.total_kb || 0)*1024) }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">DHCP leases</p>
+                <p class="text-2xl font-semibold">{{ (monitoring.dhcp_leases || []).length }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Conntrack</p>
+                <p class="text-2xl font-semibold">{{ monitoring.connections?.current || 0 }} / {{ monitoring.connections?.max || 0 }}</p>
+              </div>
+            </div>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Services<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <div class="grid grid-cols-3 md:grid-cols-5 gap-2 mb-2">
+                  <div v-for="(ok, svc) in monitoring.services" :key="svc" class="p-3 rounded shadow text-center" :class="ok ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100'">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ svc }}</p>
+                    <p class="font-semibold">{{ ok ? 'UP' : 'DOWN' }}</p>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Traffic by service<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
+                  <thead class="border-b"><tr><th class="p-2">Service</th><th class="p-2">IP</th><th class="p-2">RX</th><th class="p-2">TX</th><th class="p-2">RX pkts</th><th class="p-2">TX pkts</th></tr></thead>
+                  <tbody>
+                    <tr v-for="(stats, svc) in monitoring.service_traffic" :key="svc" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(svc)"></span>{{ svc }}</td>
+                      <td class="p-2">{{ stats.ipaddr }}</td>
+                      <td class="p-2">{{ formatBytes(stats.rx_bytes) }}</td>
+                      <td class="p-2">{{ formatBytes(stats.tx_bytes) }}</td>
+                      <td class="p-2">{{ stats.rx_packets }}</td>
+                      <td class="p-2">{{ stats.tx_packets }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">IGMP<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700 text-sm">
+                <p class="mb-2"><strong>Snooping:</strong> <span v-for="(on, br) in monitoring.igmp_snooping" :key="br" class="mr-2">{{ br }}: {{ on ? 'on' : 'off' }}</span></p>
+                <table class="w-full text-left">
+                  <thead class="border-b"><tr><th class="p-2">Bridge</th><th class="p-2">Group</th><th class="p-2">Users</th><th class="p-2">Reporter</th></tr></thead>
+                  <tbody>
+                    <template v-for="(groups, br) in monitoring.igmp_groups" :key="br">
+                      <tr v-for="(g, idx) in groups" :key="br+'-'+idx" class="border-b last:border-0">
+                        <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(br)"></span>{{ br }}</td>
+                        <td class="p-2">{{ g.ip }} <span class="text-xs text-slate-500">({{ g.group_hex }})</span></td>
+                        <td class="p-2">{{ g.users }}</td>
+                        <td class="p-2">{{ g.reporter }}</td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Interfaces<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
+                  <thead class="border-b"><tr><th class="p-2">Interface</th><th class="p-2">RX</th><th class="p-2">TX</th><th class="p-2">RX pkts</th><th class="p-2">TX pkts</th></tr></thead>
+                  <tbody>
+                    <tr v-for="iface in monitoring.interfaces" :key="iface.name" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(iface.name)"></span>{{ iface.name }}</td>
+                      <td class="p-2">{{ formatBytes(iface.rx_bytes) }}</td>
+                      <td class="p-2">{{ formatBytes(iface.tx_bytes) }}</td>
+                      <td class="p-2">{{ iface.rx_packets }}</td>
+                      <td class="p-2">{{ iface.tx_packets }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">DHCP leases<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
+                  <thead class="border-b"><tr><th class="p-2">IP</th><th class="p-2">MAC</th><th class="p-2">Hostname</th><th class="p-2"></th></tr></thead>
+                  <tbody>
+                    <tr v-for="(l, idx) in monitoring.dhcp_leases" :key="idx" class="border-b last:border-0">
+                      <td class="p-2">{{ l.ip }}</td>
+                      <td class="p-2 font-mono text-xs">{{ l.mac }}</td>
+                      <td class="p-2">{{ l.hostname }}</td>
+                      <td class="p-2"><button @click="addStaticFromLease(l)" class="text-blue-600 dark:text-blue-400 hover:underline text-xs">make static</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <!-- SNMP -->
+          <div v-if="currentTab==='snmp'">
+            <h2 class="text-lg font-semibold mb-3">SNMP walk</h2>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-4">
+              <input v-model="snmpQuery.host" placeholder="host IP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model.number="snmpQuery.port" type="number" placeholder="port" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="snmpQuery.community" placeholder="community" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="snmpQuery.oid" placeholder="OID" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <button @click="runSnmpWalk" :disabled="!snmpQuery.host || !snmpQuery.oid" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Walk</button>
+            </div>
+            <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded shadow" v-if="snmpResult.length">
+              <thead class="border-b"><tr><th class="p-2">OID</th><th class="p-2">Type</th><th class="p-2">Value</th></tr></thead>
+              <tbody>
+                <tr v-for="(r, idx) in snmpResult" :key="idx" class="border-b last:border-0">
+                  <td class="p-2 font-mono text-xs">{{ r.oid }}</td>
+                  <td class="p-2">{{ r.type }}</td>
+                  <td class="p-2">{{ r.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Discovery -->
+          <div v-if="currentTab==='discovery'">
+            <h2 class="text-lg font-semibold mb-3">mDNS Discovery</h2>
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-4 space-y-3">
+              <div class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+                <div class="md:col-span-2">
+                  <label class="block text-xs text-slate-500 mb-1">Service type</label>
+                  <input v-model="mdnsService" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Duration (s)</label>
+                  <input v-model.number="mdnsDuration" type="number" min="1" max="10" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div class="md:col-span-2">
+                  <button @click="runMdns" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Discover</button>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2 text-xs">
+                <button @click="mdnsService='_services._dns-sd._udp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">all services</button>
+                <button @click="mdnsService='_http._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_http</button>
+                <button @click="mdnsService='_ssh._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_ssh</button>
+                <button @click="mdnsService='_dante._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_dante</button>
+                <button @click="mdnsService='_ndi._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_ndi</button>
+              </div>
+            </div>
+            <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded shadow" v-if="mdnsResults.length">
+              <thead class="border-b"><tr><th class="p-2">Service</th><th class="p-2">Device name</th><th class="p-2">Hostname</th><th class="p-2">Port</th><th class="p-2">IP</th><th class="p-2">TXT</th></tr></thead>
+              <tbody>
+                <tr v-for="(r, idx) in mdnsResults" :key="idx" class="border-b last:border-0">
+                  <td class="p-2">{{ r.type }}</td>
+                  <td class="p-2 font-medium">{{ mdnsFriendlyName(r) }}</td>
+                  <td class="p-2">{{ r.hostname || '-' }}</td>
+                  <td class="p-2">{{ r.port || '-' }}</td>
+                  <td class="p-2">{{ r.ip || '-' }}</td>
+                  <td class="p-2 text-xs">{{ (r.txt || []).join(', ') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Credentials -->
+        <div v-if="currentTab==='credentials'" class="space-y-8">
+          <h2 class="text-lg font-semibold mb-3">Change root password</h2>
+          <div class="bg-white dark:bg-slate-800 p-4 rounded shadow max-w-lg space-y-3">
+            <input type="password" v-model="passwordChange.current_password" placeholder="Current password" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <input type="password" v-model="passwordChange.new_password" placeholder="New password" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <input type="password" v-model="passwordChange.confirm_password" placeholder="Confirm new password" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <button @click="changePassword" :disabled="!passwordChange.current_password || !passwordChange.new_password || !passwordChange.confirm_password" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Change password</button>
+          </div>
+        </div>
+
+        <!-- LAN/WAN -->
+        <div v-if="currentTab==='lan'" id="lanwan" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-white dark:bg-slate-800 p-4 rounded shadow space-y-3">
+            <h2 class="text-lg font-semibold mb-3">LAN interface</h2>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Physical interface</label>
+              <select v-model="lan.device" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option v-for="iface in physicalInterfaces" :value="iface">{{ iface }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Protocol</label>
+              <select v-model="lan.proto" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option value="static">Static</option>
+                <option value="dhcp">DHCP</option>
+              </select>
+            </div>
+            <input v-model="lan.ipaddr" placeholder="IP address" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <input v-model="lan.netmask" placeholder="Netmask" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <input v-model="lan.gateway" placeholder="Gateway" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <button @click="saveLan" :disabled="!lan.ipaddr || !lan.netmask" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Save LAN</button>
+          </div>
+
+          <div class="bg-white dark:bg-slate-800 p-4 rounded shadow space-y-3">
+            <h2 class="text-lg font-semibold mb-3">WAN interface</h2>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Physical interface</label>
+              <select v-model="wan.device" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option v-for="iface in physicalInterfaces" :value="iface">{{ iface }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Protocol</label>
+              <select v-model="wan.proto" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option value="dhcp">DHCP</option>
+                <option value="static">Static</option>
+              </select>
+            </div>
+            <input v-model="wan.ipaddr" placeholder="IP address" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <input v-model="wan.netmask" placeholder="Netmask" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <input v-model="wan.gateway" placeholder="Gateway" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <input v-model="wan.macaddr" placeholder="MAC address (optional)" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <button @click="saveWan" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Save WAN</button>
+          </div>
+        </div>
+
+        <!-- NTP -->
+        <div v-if="currentTab==='ntp'" class="space-y-6">
+          <h2 class="text-2xl font-bold mb-4">NTP server</h2>
+          <div class="bg-white dark:bg-slate-800 p-4 rounded shadow max-w-2xl space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="font-medium">Service NTP</span>
+              <span :class="ntp.running ? 'text-green-500' : 'text-red-500'">{{ ntp.running ? 'Running' : 'Stopped' }}</span>
+            </div>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" v-model="ntp.enabled" />
+              <span>Enable NTP client</span>
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" v-model="ntp.enable_server" />
+              <span>Act as NTP server for local networks / VLANs</span>
+            </label>
+            <div>
+              <p class="text-sm font-medium mb-2">Upstream NTP servers</p>
+              <div class="flex gap-2 mb-2">
+                <input v-model="ntp.newServer" @keyup.enter="addNtpServer" placeholder="e.g. 0.openwrt.pool.ntp.org" class="flex-1 p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <button @click="addNtpServer" class="bg-slate-200 dark:bg-slate-700 px-3 py-2 rounded hover:bg-slate-300 dark:hover:bg-slate-600">Add</button>
+              </div>
+              <div class="space-y-1">
+                <div v-for="(s, idx) in ntp.servers" :key="idx" class="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded">
+                  <span class="font-mono text-sm">{{ s }}</span>
+                  <button @click="removeNtpServer(s)" class="text-red-500 hover:text-red-700 text-sm">Remove</button>
+                </div>
+              </div>
+            </div>
+            <button @click="saveNtp" :disabled="isLoading" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Save & Restart NTP</button>
+          </div>
+
+          <div class="bg-white dark:bg-slate-800 p-4 rounded shadow max-w-2xl">
+            <h3 class="font-semibold mb-2">Utilisation</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              Quand le serveur NTP est actif, les machines de chaque VLAN peuvent pointer vers l'IP de l'interface StageNeth de leur VLAN (par exemple <code>10.20.0.1</code> pour le service de VLAN 20).
+            </p>
+          </div>
+        </div>
+
+        <!-- Logs -->
+        <div v-if="currentTab==='logs'" class="space-y-4 h-full flex flex-col">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-bold">System logs</h2>
+            <div class="flex items-center gap-3">
+              <label class="text-sm">Limit: <input v-model.number="logsLimit" type="number" min="50" max="2000" class="w-20 p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /></label>
+              <button @click="logsPaused = !logsPaused" class="px-3 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-sm">{{ logsPaused ? 'Resume' : 'Pause' }}</button>
+              <button @click="logLines = []" class="px-3 py-1 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-800 text-sm">Clear</button>
+            </div>
+          </div>
+          <pre ref="logContainer" class="flex-1 min-h-[60vh] max-h-[70vh] overflow-auto bg-slate-950 text-slate-200 p-4 rounded shadow text-xs font-mono whitespace-pre-wrap">{{ logLines.join('\n') }}</pre>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Rafraîchissement toutes les 2 secondes. Affiche les {{ logLines.length }} dernières lignes de <code>logread</code>.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js?v=18"></script>
+</body>
+</html>
