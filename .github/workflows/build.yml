@@ -1,0 +1,55 @@
+name: Build and Release StageNeth
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RUNTIME: docker
+      STAGENETH_BUILD_ROOT: ${{ github.workspace }}/.build
+      TMPDIR: /tmp
+      XDG_DATA_HOME: ${{ github.workspace }}/.build/xdg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache OpenWrt downloads
+        uses: actions/cache@v4
+        with:
+          path: .build/v24.10.5/dl
+          key: stageneth-dl-${{ runner.os }}
+          restore-keys: stageneth-dl-
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .build/v24.10.5/cache
+          key: stageneth-ccache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: stageneth-ccache-${{ runner.os }}-
+
+      - name: Build StageNeth image
+        run: ./build-stageneth.sh
+
+      - name: Upload build artifacts
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: stageneth-images-${{ github.ref_name }}
+          path: bin/*
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}

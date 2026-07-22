@@ -30,6 +30,13 @@ BUILD_SEMVER_SUFFIX=${BUILD_SEMVER_SUFFIX:-}
 BUILD_VERBOSE=${BUILD_VERBOSE:-}
 STAGENETH_BUILD_ROOT=${STAGENETH_BUILD_ROOT:-/home/dewi/newhome/tmp/stageneth}
 
+RUNTIME=${RUNTIME:-podman}
+if [ "$RUNTIME" = "podman" ]; then
+    USERSNS="--userns=keep-id"
+else
+    USERSNS=""
+fi
+
 BUILD_BASE="${STAGENETH_BUILD_ROOT}/${OWRT_VERSION}"
 for dir in \
     "${BUILD_BASE}/build_dir:/home/buildbot/openwrt/build_dir" \
@@ -40,7 +47,7 @@ for dir in \
     mkdir -p "${dir%%:*}"
 done
 
-podman build \
+${RUNTIME} build \
     --force-rm \
     --layers \
     --file builder/Containerfile \
@@ -54,12 +61,13 @@ podman build \
 
 set +e
 
+${RUNTIME} rm -f stageneth-builder >/dev/null 2>&1 || true
+
 status=0
-podman run \
+${RUNTIME} run \
     --env BUILD_VERBOSE="$BUILD_VERBOSE" \
     --name stageneth-builder \
-    --userns=keep-id \
-    --replace \
+    ${USERSNS} \
     --volume "${BUILD_BASE}/build_dir:/home/buildbot/openwrt/build_dir" \
     --volume "${BUILD_BASE}/staging_dir:/home/buildbot/openwrt/staging_dir" \
     --volume "${BUILD_BASE}/cache:/home/buildbot/openwrt/.ccache" \
@@ -70,12 +78,12 @@ podman run \
 
 if [ $status -eq 0 ]; then
     rm -rf bin
-    podman cp stageneth-builder:/home/buildbot/openwrt/bin bin
+    ${RUNTIME} cp stageneth-builder:/home/buildbot/openwrt/bin bin
 fi
 
 rm -rf build-logs
-podman cp stageneth-builder:/home/buildbot/openwrt/logs build-logs 2>/dev/null || true
-podman stop stageneth-builder >/dev/null 2>&1 || true
-podman rm stageneth-builder >/dev/null 2>&1 || true
+${RUNTIME} cp stageneth-builder:/home/buildbot/openwrt/logs build-logs 2>/dev/null || true
+${RUNTIME} stop stageneth-builder >/dev/null 2>&1 || true
+${RUNTIME} rm stageneth-builder >/dev/null 2>&1 || true
 
 exit $status
