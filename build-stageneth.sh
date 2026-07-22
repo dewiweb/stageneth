@@ -47,6 +47,8 @@ for dir in \
     mkdir -p "${dir%%:*}"
 done
 
+chmod -R a+rw "${BUILD_BASE}"
+
 ${RUNTIME} build \
     --force-rm \
     --file builder/Containerfile \
