@@ -34,3 +34,4 @@
 
 # Compiled binaries
 /packages/stageneth-api/files/stageneth-api
+build-logs/
