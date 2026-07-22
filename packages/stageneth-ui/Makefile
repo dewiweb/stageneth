@@ -6,7 +6,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=stageneth-ui
-PKG_VERSION:=0.1.0
+PKG_VERSION:=0.2.0
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-2.0-only
 
@@ -31,6 +31,10 @@ define Package/stageneth-ui/install
 	$(INSTALL_DIR) $(1)/www-stageneth
 	$(INSTALL_DATA) ./files/index.html $(1)/www-stageneth/
 	$(INSTALL_DATA) ./files/app.js $(1)/www-stageneth/
+	$(INSTALL_DATA) ./files/api.js $(1)/www-stageneth/
+	$(INSTALL_DATA) ./files/utils.js $(1)/www-stageneth/
+	$(CP) ./files/vendor $(1)/www-stageneth/
+	$(CP) ./files/tabs $(1)/www-stageneth/
 
 	$(INSTALL_DIR) $(1)/etc/nginx/conf.d
 	$(INSTALL_DATA) ./files/stageneth-ui.locations $(1)/etc/nginx/conf.d/

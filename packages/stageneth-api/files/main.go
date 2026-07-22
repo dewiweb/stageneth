@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -774,6 +775,11 @@ func ntpGet(w http.ResponseWriter, r *http.Request) {
 			servers = append(servers, s)
 		}
 	}
+	tzOut, _ := exec.Command("uci", "-q", "get", "system.@system[0].timezone").Output()
+	timezone := strings.TrimSpace(string(tzOut))
+	if timezone == "" {
+		timezone = "UTC0"
+	}
 	running := false
 	if out, _ := exec.Command("sh", "-c", "ps 2>/dev/null | grep -q '[n]tpd' && echo yes").Output(); strings.TrimSpace(string(out)) == "yes" {
 		running = true
@@ -783,6 +789,7 @@ func ntpGet(w http.ResponseWriter, r *http.Request) {
 		"enable_server": strings.TrimSpace(enableServer) == "1",
 		"servers":       servers,
 		"running":       running,
+		"timezone":      timezone,
 	}, "ntp status")
 }
 
@@ -791,6 +798,7 @@ func ntpSet(w http.ResponseWriter, r *http.Request) {
 		Enabled      bool     `json:"enabled"`
 		EnableServer bool     `json:"enable_server"`
 		Servers      []string `json:"servers"`
+		Timezone     string   `json:"timezone"`
 	}
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		respond(w, 400, nil, "invalid ntp request")
@@ -804,11 +812,15 @@ func ntpSet(w http.ResponseWriter, r *http.Request) {
 	if req.EnableServer {
 		servVal = "1"
 	}
+	if req.Timezone == "" {
+		req.Timezone = "UTC0"
+	}
 	commands := []string{
 		"set system.ntp=timeserver",
 		fmt.Sprintf("set system.ntp.enabled='%s'", enVal),
 		fmt.Sprintf("set system.ntp.enable_server='%s'", servVal),
 		"delete system.ntp.server",
+		fmt.Sprintf("set system.@system[0].timezone='%s'", req.Timezone),
 	}
 	for _, s := range req.Servers {
 		if s = strings.TrimSpace(s); s != "" {
@@ -830,6 +842,41 @@ func ntpSet(w http.ResponseWriter, r *http.Request) {
 		exec.Command("ntpd", "-n", "-N", "-S", "/usr/sbin/ntpd-hotplug").Start()
 	}
 	ntpGet(w, r)
+}
+
+func timeGet(w http.ResponseWriter, r *http.Request) {
+	dateOut, _ := exec.Command("date", "+%Y-%m-%d").Output()
+	timeOut, _ := exec.Command("date", "+%H:%M:%S").Output()
+	tzOut, _ := exec.Command("date", "+%Z").Output()
+
+	source, stratum, offset := "-", "", ""
+	if out, err := exec.Command("ntpq", "-pn", "127.0.0.1").Output(); err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if strings.HasPrefix(line, "*") {
+				fields := strings.Fields(line)
+				if len(fields) >= 9 {
+					source = strings.TrimPrefix(fields[0], "*")
+					stratum = fields[2]
+					offset = fields[8]
+				}
+				break
+			}
+		}
+	} else if out, err := exec.Command("uci", "-q", "get", "system.ntp.server").Output(); err == nil {
+		servers := strings.Fields(string(out))
+		if len(servers) > 0 {
+			source = servers[0]
+		}
+	}
+
+	respond(w, 200, map[string]string{
+		"date":     strings.TrimSpace(string(dateOut)),
+		"time":     strings.TrimSpace(string(timeOut)),
+		"timezone": strings.TrimSpace(string(tzOut)),
+		"source":   source,
+		"stratum":  stratum,
+		"offset":   offset,
+	}, "time")
 }
 
 func logsGet(w http.ResponseWriter, r *http.Request) {
@@ -1109,6 +1156,85 @@ func opensslHash(password string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+func firstbootDone() bool {
+	out, _ := exec.Command("uci", "-q", "get", "stageneth.globals.firstboot_done").Output()
+	return strings.TrimSpace(string(out)) == "1"
+}
+
+func listServices() []string {
+	out, err := exec.Command("uci", "-q", "show", "stageneth").Output()
+	if err != nil {
+		return []string{}
+	}
+	sections := parseUciShow(string(out))
+	names := []string{}
+	for s, data := range sections {
+		m, ok := data.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if t, ok := m[".type"].(string); ok && t == "service" {
+			names = append(names, s)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+func firstbootStatus(w http.ResponseWriter, r *http.Request) {
+	respond(w, 200, map[string]interface{}{"firstboot_done": firstbootDone(), "services": listServices()}, "ok")
+}
+
+func wizard(w http.ResponseWriter, r *http.Request) {
+	if firstbootDone() {
+		respond(w, 403, nil, "wizard already completed")
+		return
+	}
+	var req struct {
+		Password string   `json:"password"`
+		Services []string `json:"services"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Password == "" {
+		respond(w, 400, nil, "invalid wizard request")
+		return
+	}
+	hash, err := opensslHash(req.Password)
+	if err != nil {
+		respond(w, 500, nil, "hash error")
+		return
+	}
+	if err := exec.Command("sed", "-i", fmt.Sprintf("s|^root:[^:]*:|root:%s:|", hash), "/etc/shadow").Run(); err != nil {
+		respond(w, 500, nil, "shadow update error")
+		return
+	}
+
+	selected := map[string]bool{}
+	for _, s := range req.Services {
+		selected[s] = true
+	}
+	known := listServices()
+	commands := []string{}
+	for _, s := range known {
+		if !selected[s] {
+			commands = append(commands, fmt.Sprintf("delete stageneth.%s", s))
+		}
+	}
+	commands = append(commands, "set stageneth.globals='stageneth'", "set stageneth.globals.firstboot_done='1'")
+	in := strings.Join(commands, "\n") + "\n"
+	cmd := exec.Command("uci", "-q", "batch")
+	cmd.Stdin = strings.NewReader(in)
+	if err := cmd.Run(); err != nil {
+		respond(w, 500, nil, "uci batch failed")
+		return
+	}
+	exec.Command("uci", "-q", "commit", "stageneth").Run()
+	if out, err := exec.Command("/usr/libexec/stageneth/stageneth-network.py", "apply").CombinedOutput(); err != nil {
+		respond(w, 500, map[string]string{"log": string(out)}, "network apply failed")
+		return
+	}
+	respond(w, 200, map[string]string{"token": token("root")}, "wizard complete")
+}
+
 func changePassword(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CurrentPassword string `json:"current_password"`
@@ -1161,6 +1287,8 @@ func main() {
 	}
 
 	http.HandleFunc("/api/login", login)
+	http.HandleFunc("/api/firstboot", firstbootStatus)
+	http.HandleFunc("/api/wizard", wizard)
 	http.HandleFunc("/api/change-password", auth(changePassword))
 	http.HandleFunc("/api/ubus/call", auth(ubusCall))
 	http.HandleFunc("/api/uci/get", auth(uciGet))
@@ -1176,6 +1304,7 @@ func main() {
 	http.HandleFunc("/api/mdns/discover", auth(mdnsDiscover))
 	http.HandleFunc("/api/ntp", auth(ntpGet))
 	http.HandleFunc("/api/ntp/set", auth(ntpSet))
+	http.HandleFunc("/api/time", auth(timeGet))
 	http.HandleFunc("/api/logs", auth(logsGet))
 
 	addr := fmt.Sprintf("%s:%s", bind, port)

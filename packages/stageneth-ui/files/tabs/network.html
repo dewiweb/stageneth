@@ -1,0 +1,121 @@
+          <div v-if="currentTab==='network'" class="space-y-6">
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">StageNeth Services Network</h2>
+              <p class="text-xs text-slate-500 mb-2">Overview of auto-generated network objects per StageNeth service</p>
+              <table class="w-full text-left text-sm mb-4">
+                <thead class="border-b">
+                  <tr>
+                    <th class="p-2">Service</th>
+                    <th class="p-2">VLAN ID</th>
+                    <th class="p-2">Interface / IP</th>
+                    <th class="p-2">Bridge</th>
+                    <th class="p-2">Bridge Ports</th>
+                    <th class="p-2">VLAN Device</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(s, name) in serviceNetworks" :key="name" class="border-b last:border-0">
+                    <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                    <td class="p-2">{{ s.vlan_id }}</td>
+                    <td class="p-2"><span class="font-mono text-xs">{{ s.interface }}</span><br><span class="text-xs text-slate-500">{{ s.ip }} / {{ s.netmask }}</span></td>
+                    <td class="p-2 font-mono text-xs">{{ s.bridge }}</td>
+                    <td class="p-2 font-mono text-xs">{{ s.bridgePorts }}</td>
+                    <td class="p-2 font-mono text-xs">{{ s.vlan }} <span v-if="s.vlan !== '-'" class="text-slate-500">on {{ s.vlanParent }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">Physical NICs</h2>
+              <p class="text-xs text-slate-500 mb-2">Network cards detected on the system</p>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="iface in physicalInterfaces" :key="iface" class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700 text-sm font-mono">{{ iface }}</span>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">Logical Interfaces</h2>
+              <p class="text-xs text-slate-500 mb-2">Interfaces with IP configuration (lan, wan, loopback, StageNeth services)</p>
+              <table class="w-full text-left text-sm mb-4">
+                <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Proto</th><th class="p-2">IP / Netmask</th><th class="p-2">Device</th><th class="p-2"></th></tr></thead>
+                <tbody>
+                  <tr v-for="(s, name) in networkInterfaces" :key="name" class="border-b last:border-0">
+                    <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                    <td class="p-2"><select v-if="editing.name === name && editing.type === 'interface'" v-model="newInterface.proto" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="static">static</option><option value="dhcp">dhcp</option><option value="none">none</option></select><span v-else>{{ s.proto }}</span></td>
+                    <td class="p-2"><span v-if="editing.name === name && editing.type === 'interface'" class="flex gap-1"><input v-model="newInterface.ipaddr" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><input v-model="newInterface.netmask" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /></span><span v-else>{{ s.ipaddr }} / {{ s.netmask }}</span></td>
+                    <td class="p-2"><input v-if="editing.name === name && editing.type === 'interface'" v-model="newInterface.device" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.device }}</span></td>
+                    <td class="p-2"><button v-if="editing.name === name && editing.type === 'interface'" @click="addInterface" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('interface', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('network', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                  </tr>
+                </tbody>
+              </table>
+              <form @submit.prevent="addInterface" class="grid grid-cols-6 gap-2">
+                <input v-model="newInterface.name" placeholder="name" required aria-label="Nom de l'interface" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <select v-model="newInterface.proto" aria-label="Protocole" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="static">static</option><option value="dhcp">dhcp</option><option value="none">none</option></select>
+                <input v-model="newInterface.ipaddr" placeholder="ip" aria-label="Adresse IP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <input v-model="newInterface.netmask" placeholder="mask" aria-label="Masque" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <input v-model="newInterface.device" placeholder="device" aria-label="Device" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <button type="submit" :disabled="!newInterface.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+              </form>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <h2 class="text-lg font-semibold mb-3">Bridges</h2>
+                <p class="text-xs text-slate-500 mb-2">Software switches grouping ports</p>
+                <table class="w-full text-left text-sm mb-4">
+                  <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Ports</th><th class="p-2"></th></tr></thead>
+                  <tbody>
+                    <tr v-for="(s, name) in bridges" :key="name" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                      <td class="p-2 font-mono text-xs">{{ s.ports || '-' }}</td>
+                      <td class="p-2"><button @click="startEdit('device', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('network', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <h2 class="text-lg font-semibold mb-3">VLANs (8021q)</h2>
+                <p class="text-xs text-slate-500 mb-2">Tagged virtual interfaces</p>
+                <table class="w-full text-left text-sm mb-4">
+                  <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">VID</th><th class="p-2">Parent</th><th class="p-2"></th></tr></thead>
+                  <tbody>
+                    <tr v-for="(s, name) in vlans" :key="name" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                      <td class="p-2">{{ s.vid || '-' }}</td>
+                      <td class="p-2 font-mono text-xs">{{ s.ifname || '-' }}</td>
+                      <td class="p-2"><button @click="startEdit('device', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('network', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">Add Bridge or VLAN</h2>
+              <form @submit.prevent="addDevice" class="grid grid-cols-5 gap-2 items-end">
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1" for="newDeviceName">Device name</label>
+                  <input id="newDeviceName" v-model="newDevice.name" placeholder="e.g. eth0.21" required class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1" for="newDeviceType">Type</label>
+                  <select id="newDeviceType" v-model="newDevice.type" class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="8021q">8021q vlan</option><option value="bridge">bridge</option></select>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1" for="newDeviceVid">VLAN ID / Ports</label>
+                  <input id="newDeviceVid" v-model="newDevice.vid" placeholder="e.g. 21" class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1" for="newDeviceIfname">Parent interface</label>
+                  <input id="newDeviceIfname" v-model="newDevice.ifname" placeholder="e.g. eth0" class="p-2 border rounded w-full dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <button type="submit" :disabled="!newDevice.name" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+                </div>
+              </form>
+              <p class="text-xs text-slate-500 mt-2">For a VLAN: name=eth0.21, type=8021q, VLAN ID=21, parent=eth0. For a bridge: name=br_mgmt, type=bridge, ports=eth0.10 eth0.20, parent empty.</p>
+            </div>
+          </div>

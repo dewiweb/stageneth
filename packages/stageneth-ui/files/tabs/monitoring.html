@@ -1,0 +1,128 @@
+          <div v-if="currentTab==='monitoring'">
+            <h2 class="text-lg font-semibold mb-3">Monitoring</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">CPU</p>
+                <p class="text-2xl font-semibold">{{ formatPercent(monitoring.cpu_percent) }}</p>
+                <svg viewBox="0 0 100 30" class="w-full h-8 mt-2 text-blue-500" preserveAspectRatio="none">
+                  <polyline :points="sparklinePoints(monitoringHistory.cpu)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Load</p>
+                <p class="text-2xl font-semibold">{{ monitoring.load ?? '-' }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Uptime</p>
+                <p class="text-2xl font-semibold">{{ formatUptime(monitoring.uptime_seconds) }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Memory</p>
+                <p class="text-2xl font-semibold">{{ formatPercent(monitoring.memory?.used_percent) }}</p>
+                <svg viewBox="0 0 100 30" class="w-full h-8 mt-2 text-purple-500" preserveAspectRatio="none">
+                  <polyline :points="sparklineAuto(monitoringHistory.memory)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
+                </svg>
+                <p class="text-xs text-slate-400 dark:text-slate-500">{{ formatBytes((monitoring.memory?.used_kb || 0)*1024) }} / {{ formatBytes((monitoring.memory?.total_kb || 0)*1024) }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">DHCP leases</p>
+                <p class="text-2xl font-semibold">{{ (monitoring.dhcp_leases || []).length }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">Conntrack</p>
+                <p class="text-2xl font-semibold">{{ monitoring.connections?.current || 0 }} / {{ monitoring.connections?.max || 0 }}</p>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <p class="text-sm text-slate-500 dark:text-slate-400">NTP</p>
+                <p class="text-2xl font-semibold">{{ ntp.running ? 'Running' : 'Stopped' }}</p>
+                <p class="text-xs text-slate-400 dark:text-slate-500">Client: {{ ntp.enabled ? 'On' : 'Off' }} | Server: {{ ntp.enable_server ? 'On' : 'Off' }}</p>
+                <p class="text-xs text-slate-400 dark:text-slate-500 truncate" :title="(ntp.servers || []).join(', ')">{{ (ntp.servers || []).join(', ') }}</p>
+              </div>
+            </div>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Services<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <div class="grid grid-cols-3 md:grid-cols-5 gap-2 mb-2">
+                  <div v-for="(ok, svc) in monitoring.services" :key="svc" class="p-3 rounded shadow text-center" :class="ok ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100'">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ svc }}</p>
+                    <p class="font-semibold">{{ ok ? 'UP' : 'DOWN' }}</p>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Traffic by service<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
+                  <thead class="border-b"><tr><th class="p-2">Service</th><th class="p-2">IP</th><th class="p-2">RX</th><th class="p-2">TX</th><th class="p-2">RX pkts</th><th class="p-2">TX pkts</th></tr></thead>
+                  <tbody>
+                    <tr v-for="(stats, svc) in monitoring.service_traffic" :key="svc" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(svc)"></span>{{ svc }}</td>
+                      <td class="p-2">{{ stats.ipaddr }}</td>
+                      <td class="p-2">{{ formatBytes(stats.rx_bytes) }}</td>
+                      <td class="p-2">{{ formatBytes(stats.tx_bytes) }}</td>
+                      <td class="p-2">{{ stats.rx_packets }}</td>
+                      <td class="p-2">{{ stats.tx_packets }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">IGMP<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700 text-sm">
+                <p class="mb-2"><strong>Snooping:</strong> <span v-for="(on, br) in monitoring.igmp_snooping" :key="br" class="mr-2">{{ br }}: {{ on ? 'on' : 'off' }}</span></p>
+                <table class="w-full text-left">
+                  <thead class="border-b"><tr><th class="p-2">Bridge</th><th class="p-2">Group</th><th class="p-2">Users</th><th class="p-2">Reporter</th></tr></thead>
+                  <tbody>
+                    <template v-for="(groups, br) in monitoring.igmp_groups" :key="br">
+                      <tr v-for="(g, idx) in groups" :key="br+'-'+idx" class="border-b last:border-0">
+                        <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(br)"></span>{{ br }}</td>
+                        <td class="p-2">{{ g.ip }} <span class="text-xs text-slate-500">({{ g.group_hex }})</span></td>
+                        <td class="p-2">{{ g.users }}</td>
+                        <td class="p-2">{{ g.reporter }}</td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Interfaces<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
+                  <thead class="border-b"><tr><th class="p-2">Interface</th><th class="p-2">RX</th><th class="p-2">TX</th><th class="p-2">RX pkts</th><th class="p-2">TX pkts</th></tr></thead>
+                  <tbody>
+                    <tr v-for="iface in monitoring.interfaces" :key="iface.name" class="border-b last:border-0">
+                      <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(iface.name)"></span>{{ iface.name }}</td>
+                      <td class="p-2">{{ formatBytes(iface.rx_bytes) }}</td>
+                      <td class="p-2">{{ formatBytes(iface.tx_bytes) }}</td>
+                      <td class="p-2">{{ iface.rx_packets }}</td>
+                      <td class="p-2">{{ iface.tx_packets }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">DHCP leases<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
+                <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
+                  <thead class="border-b"><tr><th class="p-2">IP</th><th class="p-2">MAC</th><th class="p-2">Hostname</th><th class="p-2"></th></tr></thead>
+                  <tbody>
+                    <tr v-for="(l, idx) in monitoring.dhcp_leases" :key="idx" class="border-b last:border-0">
+                      <td class="p-2">{{ l.ip }}</td>
+                      <td class="p-2 font-mono text-xs">{{ l.mac }}</td>
+                      <td class="p-2">{{ l.hostname }}</td>
+                      <td class="p-2"><button @click="addStaticFromLease(l)" class="text-blue-600 dark:text-blue-400 hover:underline text-xs">make static</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>

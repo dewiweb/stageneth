@@ -1,0 +1,51 @@
+        <div v-if="currentTab==='lan'" id="lanwan" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <form @submit.prevent="saveLan" class="bg-white dark:bg-slate-800 p-4 rounded shadow space-y-3">
+            <h2 class="text-lg font-semibold mb-3">LAN interface</h2>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1" for="lanDevice">Interface physique</label>
+              <select id="lanDevice" v-model="lan.device" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option v-for="iface in physicalInterfaces" :value="iface">{{ iface }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1" for="lanProto">Protocole</label>
+              <select id="lanProto" v-model="lan.proto" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option value="static">Static</option>
+                <option value="dhcp">DHCP</option>
+              </select>
+            </div>
+            <label class="sr-only" for="lanIpaddr">Adresse IP</label>
+            <input id="lanIpaddr" v-model="lan.ipaddr" placeholder="Adresse IP" aria-label="Adresse IP" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <label class="sr-only" for="lanNetmask">Masque</label>
+            <input id="lanNetmask" v-model="lan.netmask" placeholder="Masque" aria-label="Masque" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <label class="sr-only" for="lanGateway">Passerelle</label>
+            <input id="lanGateway" v-model="lan.gateway" placeholder="Passerelle" aria-label="Passerelle" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <button type="submit" :disabled="!lan.ipaddr || !lan.netmask" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Save LAN</button>
+          </form>
+
+          <form @submit.prevent="saveWan" class="bg-white dark:bg-slate-800 p-4 rounded shadow space-y-3">
+            <h2 class="text-lg font-semibold mb-3">WAN interface</h2>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1" for="wanDevice">Interface physique</label>
+              <select id="wanDevice" v-model="wan.device" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option v-for="iface in physicalInterfaces" :value="iface">{{ iface }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1" for="wanProto">Protocole</label>
+              <select id="wanProto" v-model="wan.proto" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                <option value="dhcp">DHCP</option>
+                <option value="static">Static</option>
+              </select>
+            </div>
+            <label class="sr-only" for="wanIpaddr">Adresse IP</label>
+            <input id="wanIpaddr" v-model="wan.ipaddr" placeholder="Adresse IP" aria-label="Adresse IP" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <label class="sr-only" for="wanNetmask">Masque</label>
+            <input id="wanNetmask" v-model="wan.netmask" placeholder="Masque" aria-label="Masque" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <label class="sr-only" for="wanGateway">Passerelle</label>
+            <input id="wanGateway" v-model="wan.gateway" placeholder="Passerelle" aria-label="Passerelle" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <label class="sr-only" for="wanMacaddr">Adresse MAC (optionnelle)</label>
+            <input id="wanMacaddr" v-model="wan.macaddr" placeholder="Adresse MAC (optionnelle)" aria-label="Adresse MAC (optionnelle)" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+            <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Save WAN</button>
+          </form>
+        </div>

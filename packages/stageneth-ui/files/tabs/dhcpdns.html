@@ -1,0 +1,69 @@
+          <div v-if="currentTab==='dhcpdns'">
+            <h2 class="text-lg font-semibold mb-3">DHCP pools</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Interface</th><th class="p-2">Start</th><th class="p-2">Limit</th><th class="p-2">Leasetime</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in dhcpPools" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.interface" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.interface)"></span>{{ s.interface }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.start" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.start }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.limit" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.limit }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dhcp'" v-model="newDhcp.leasetime" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.leasetime }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'dhcp'" @click="addDhcp" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('dhcp', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('dhcp', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <form @submit.prevent="addDhcp" class="grid grid-cols-6 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newDhcp.name" placeholder="name" required aria-label="Nom du pool DHCP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.interface" placeholder="interface" aria-label="Interface" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.start" placeholder="start" aria-label="Adresse de départ" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.limit" placeholder="limit" aria-label="Limite" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDhcp.leasetime" placeholder="12h" aria-label="Durée du bail" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <button type="submit" :disabled="!newDhcp.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </form>
+
+            <h2 class="text-lg font-semibold mb-3 mt-6">Static hosts / DNS</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Hostname</th><th class="p-2">MAC</th><th class="p-2">IP</th><th class="p-2">DNS</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in staticLeases" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.name)"></span>{{ s.name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'host'" v-model="newHost.mac" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.mac }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'host'" v-model="newHost.ip" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.ip }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'host'" v-model="newHost.dns" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.dns === '0' ? 'no' : 'yes' }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'host'" @click="addHost" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('host', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('dhcp', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <form @submit.prevent="addHost" class="grid grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newHost.name" placeholder="hostname" required aria-label="Nom d'hôte" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newHost.mac" placeholder="mac" aria-label="Adresse MAC" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newHost.ip" placeholder="ip" aria-label="Adresse IP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newHost.dns" aria-label="DNS" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">dns yes</option><option value="0">dns no</option></select>
+              <button type="submit" :disabled="!newHost.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </form>
+          </div>
+
+          <!-- DNS dans le même onglet -->
+          <div v-if="currentTab==='dhcpdns'">
+            <h2 class="text-lg font-semibold mb-3">DNS / Dnsmasq</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Domain</th><th class="p-2">Local</th><th class="p-2">DNS servers</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in dnsSections" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dns'" v-model="newDns.domain" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.domain }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dns'" v-model="newDns.local" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.local }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'dns'" v-model="newDns.server" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.server }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'dns'" @click="addDns" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('dns', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('dhcp', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <form @submit.prevent="addDns" class="grid grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newDns.name" placeholder="name" required aria-label="Nom DNS" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDns.domain" placeholder="domain" aria-label="Domaine" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDns.local" placeholder="local (/lan)" aria-label="Local" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newDns.server" placeholder="servers" aria-label="Serveurs DNS" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <button type="submit" :disabled="!newDns.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            </form>
+          </div>

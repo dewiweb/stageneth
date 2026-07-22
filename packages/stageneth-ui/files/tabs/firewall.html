@@ -1,0 +1,78 @@
+          <div v-if="currentTab==='firewall'">
+            <h2 class="text-lg font-semibold mb-3">Firewall zones</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Networks</th><th class="p-2">Input</th><th class="p-2">Output</th><th class="p-2">Forward</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in firewallZones" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.name)"></span>{{ s.name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.network" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.network)"></span>{{ s.network }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.input" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select><span v-else>{{ s.input }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.output" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select><span v-else>{{ s.output }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'zone'" v-model="newZone.forward" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select><span v-else>{{ s.forward }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'zone'" @click="addZone" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('zone', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('firewall', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <form @submit.prevent="addZone" class="grid grid-cols-6 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
+              <input v-model="newZone.name" placeholder="name" aria-label="Nom de la zone" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newZone.network" placeholder="networks" aria-label="Réseaux" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newZone.input" aria-label="Input" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <select v-model="newZone.output" aria-label="Output" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <select v-model="newZone.forward" aria-label="Forward" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <button type="submit" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Add</button>
+            </form>
+
+            <h2 class="text-lg font-semibold mb-3">Inter-zone forwarding</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Source</th><th class="p-2">Destination</th><th class="p-2">Enabled</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in firewallForwardings" :key="name" class="border-b last:border-0">
+                  <td class="p-2 font-medium">{{ name }}</td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'fwforwarding'" v-model="newFwForwarding.src" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.src)"></span>{{ s.src }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'fwforwarding'" v-model="newFwForwarding.dest" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.dest)"></span>{{ s.dest }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'fwforwarding'" v-model="newFwForwarding.enabled" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">enabled</option><option value="0">disabled</option></select><span v-else>{{ s.enabled }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'fwforwarding'" @click="addFwForwarding" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('fwforwarding', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('firewall', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+            <form @submit.prevent="addFwForwarding" class="grid grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newFwForwarding.name" placeholder="name" aria-label="Nom du forwarding" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newFwForwarding.src" placeholder="src" aria-label="Source" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newFwForwarding.dest" placeholder="dest" aria-label="Destination" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newFwForwarding.enabled" aria-label="Activé" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">enabled</option><option value="0">disabled</option></select>
+              <button type="submit" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Add</button>
+            </form>
+
+            <h2 class="text-lg font-semibold mb-3 mt-6">Firewall rules</h2>
+            <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Source</th><th class="p-2">Proto</th><th class="p-2">Port</th><th class="p-2">Target</th><th class="p-2"></th></tr></thead>
+              <tbody>
+                <tr v-for="(s, name) in firewallRules" :key="name" class="border-b last:border-0">
+                  <template v-if="editing.name === name && editing.type === 'rule'">
+                    <td class="p-2"><input v-model="newRule.name" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><input v-model="newRule.src" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><input v-model="newRule.proto" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><input v-model="newRule.dest_port" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 w-full" /></td>
+                    <td class="p-2"><select v-model="newRule.target" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select></td>
+                    <td class="p-2"><button @click="addRule" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button @click="editing={type:'',name:''}" class="text-slate-600 dark:text-slate-400 hover:underline">cancel</button></td>
+                  </template>
+                  <template v-else>
+                    <td class="p-2 font-medium">{{ s.name || name }}</td>
+                    <td class="p-2"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(s.src)"></span>{{ s.src }}</td>
+                    <td class="p-2">{{ s.proto }}</td>
+                    <td class="p-2">{{ s.dest_port }}</td>
+                    <td class="p-2">{{ s.target }}</td>
+                    <td class="p-2"><button @click="startEdit('rule', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('firewall', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
+            <form @submit.prevent="addRule" class="grid grid-cols-6 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <input v-model="newRule.name" placeholder="name" aria-label="Nom de la règle" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newRule.src" placeholder="src zone" aria-label="Zone source" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newRule.proto" placeholder="proto" aria-label="Protocole" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newRule.dest_port" placeholder="port" aria-label="Port" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newRule.target" aria-label="Cible" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="ACCEPT">ACCEPT</option><option value="REJECT">REJECT</option><option value="DROP">DROP</option></select>
+              <button type="submit" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Add</button>
+            </form>
+          </div>

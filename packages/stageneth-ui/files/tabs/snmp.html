@@ -1,0 +1,20 @@
+          <div v-if="currentTab==='snmp'">
+            <h2 class="text-lg font-semibold mb-3">SNMP walk</h2>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-4">
+              <input v-model="snmpQuery.host" placeholder="host IP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model.number="snmpQuery.port" type="number" placeholder="port" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="snmpQuery.community" placeholder="community" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="snmpQuery.oid" placeholder="OID" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <button @click="runSnmpWalk" :disabled="!snmpQuery.host || !snmpQuery.oid" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Walk</button>
+            </div>
+            <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded shadow" v-if="snmpResult.length">
+              <thead class="border-b"><tr><th class="p-2">OID</th><th class="p-2">Type</th><th class="p-2">Value</th></tr></thead>
+              <tbody>
+                <tr v-for="(r, idx) in snmpResult" :key="idx" class="border-b last:border-0">
+                  <td class="p-2 font-mono text-xs">{{ r.oid }}</td>
+                  <td class="p-2">{{ r.type }}</td>
+                  <td class="p-2">{{ r.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>

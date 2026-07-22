@@ -1,34 +1,5 @@
 const { createApp } = Vue;
 
-const api = async (path, method, body) => {
-  const token = localStorage.getItem('stageneth_token_v2');
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json' }
-  };
-  if (token) opts.headers.Authorization = `Bearer ${token}`;
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(path, opts);
-  const text = await res.text().catch(() => '');
-  let data;
-  try { data = text ? JSON.parse(text) : {}; } catch (e) { data = null; }
-  if (!data || typeof data !== 'object') {
-    const preview = text.substring(0, 120).replace(/\n/g, ' ');
-    throw new Error(`API ${path} status ${res.status}: non-JSON response: ${preview}`);
-  }
-  if (data.code !== 200) {
-    throw new Error(`API ${path} status ${res.status}: ${data.message || JSON.stringify(data)}`);
-  }
-  if (res.status >= 400) {
-    if (res.status === 403 || (data.message && data.message.toLowerCase().includes('invalid token'))) {
-      localStorage.removeItem('stageneth_token_v2');
-      window.location.reload();
-      return;
-    }
-    throw new Error(data.message || res.statusText);
-  }
-  return data;
-};
 
 createApp({
   data() {
@@ -86,7 +57,25 @@ createApp({
       mdnsService: '_services._dns-sd._udp',
       mdnsDuration: 3,
       mdnsResults: [],
-      ntp: { enabled: false, enable_server: false, servers: [], newServer: '' },
+      ntp: { enabled: false, enable_server: false, servers: [], newServer: '', timezone: 'UTC0' },
+      ntpTime: { date: '-', time: '-', timezone: '', source: '', stratum: '', offset: '' },
+      ntpTimeInterval: null,
+      timezones: [
+        { label: 'UTC', value: 'UTC0' },
+        { label: 'Europe/Paris', value: 'CET-1CEST,M3.5.0,M10.5.0/3' },
+        { label: 'Europe/London', value: 'GMT0BST,M3.5.0/1,M10.5.0/2' },
+        { label: 'Europe/Berlin', value: 'CET-1CEST,M3.5.0,M10.5.0/3' },
+        { label: 'America/New York', value: 'EST5EDT,M3.2.0,M11.1.0' },
+        { label: 'America/Chicago', value: 'CST6CDT,M3.2.0,M11.1.0' },
+        { label: 'America/Los Angeles', value: 'PST8PDT,M3.2.0,M11.1.0' },
+        { label: 'America/Sao Paulo', value: 'BRT3BRST,M10.3.0/0,M2.3.0/0' },
+        { label: 'Asia/Dubai', value: 'GST-4' },
+        { label: 'Asia/Shanghai', value: 'CST-8' },
+        { label: 'Asia/Tokyo', value: 'JST-9' },
+        { label: 'Asia/Singapore', value: 'SGT-8' },
+        { label: 'Australia/Sydney', value: 'AEST-10AEDT,M10.1.0,M4.1.0/3' },
+        { label: 'Pacific/Auckland', value: 'NZST-12NZDT,M9.5.0/2,M4.1.0/3' }
+      ],
       logLines: [],
       logsInterval: null,
       logsPaused: false,
@@ -99,7 +88,12 @@ createApp({
       selectedPreset: '',
       selectedPresetServices: [],
       editing: { type: '', name: '' },
-      hasPendingChanges: false
+      hasPendingChanges: false,
+      showWizard: false,
+      wizardStep: 1,
+      wizardPassword: '',
+      wizardConfirmPassword: '',
+      wizardServices: {}
     };
   },
   computed: {
@@ -151,8 +145,10 @@ createApp({
     currentTab(tab) {
       localStorage.setItem('stageneth_tab', tab);
       this.stopLogs();
+      this.stopNtpTime();
       if (tab === 'monitoring') { this.fetchMonitoring(); }
       else if (tab === 'logs') { this.startLogs(); }
+      else if (tab === 'ntp') { this.loadNtp(); this.fetchNtpTime(); this.startNtpTime(); }
       else { this.refresh(); }
       this.mobileMenuOpen = false;
     },
@@ -172,13 +168,17 @@ createApp({
     this.isDark = saved ? saved === 'dark' : true;
     if (this.isDark) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
+    await this.checkFirstboot();
+    if (this.showWizard) return;
     if (this.token) { await this.refresh(); this.startMonitoring(); await this.loadPresets(); await this.loadLan(); await this.loadWan(); await this.loadNetworkInterfaces(); await this.ensureDefaultBinding(); await this.loadNtp(); }
   },
   beforeUnmount() {
     this.stopMonitoring();
     this.stopLogs();
+    this.stopNtpTime();
   },
   methods: {
+    ...utils,
     toast(msg, type='info') {
       this.message = msg;
       this.messageType = type;
@@ -205,6 +205,54 @@ createApp({
       this.token = '';
       localStorage.removeItem('stageneth_token_v2');
     },
+    async checkFirstboot() {
+      try {
+        const res = await api('/api/firstboot', 'GET');
+        if (res.data && !res.data.firstboot_done) {
+          this.showWizard = true;
+          this.wizardServices = Object.fromEntries((res.data.services || []).map(s => [s, true]));
+        }
+      } catch (e) {}
+    },
+    nextWizardStep() {
+      this.error = '';
+      if (this.wizardPassword.length < 4) { this.error = 'Mot de passe trop court'; return; }
+      if (this.wizardPassword !== this.wizardConfirmPassword) { this.error = 'Les mots de passe ne correspondent pas'; return; }
+      this.wizardStep = 2;
+    },
+    async submitWizard() {
+      this.error = '';
+      const services = Object.keys(this.wizardServices).filter(k => this.wizardServices[k]);
+      try {
+        this.isLoading = true;
+        const res = await api('/api/wizard', 'POST', { password: this.wizardPassword, services });
+        this.token = res.data.token;
+        localStorage.setItem('stageneth_token_v2', this.token);
+        this.showWizard = false;
+        this.wizardStep = 1;
+        this.wizardPassword = '';
+        this.wizardConfirmPassword = '';
+        await this.refresh();
+        this.startMonitoring();
+        this.toast('Configuration initiale terminée', 'success');
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async resetWizard() {
+      if (!confirm('Relancer le wizard ? Cela déconnectera et réinitialisera le flag firstboot.')) return;
+      try {
+        await this.uciSet('stageneth', 'globals', 'stageneth', { firstboot_done: '0' });
+        await this.uciCommit('stageneth');
+        this.logout();
+        this.showWizard = true;
+        this.wizardStep = 1;
+      } catch (e) {
+        this.toast('Reset wizard failed: ' + e.message, 'error');
+      }
+    },
     async ubus(path, method, payload = {}) {
       return api('/api/ubus/call', 'POST', { path, method, payload });
     },
@@ -229,6 +277,7 @@ createApp({
       }
     },
     async removeUci(config, section) {
+      if (!confirm('Confirmer la suppression de ' + section + ' ?')) return;
       this.isLoading = true;
       try {
         await this.uciSet(config, section, '', {});
@@ -366,61 +415,6 @@ createApp({
       } finally {
         this.monitoringTimeout = setTimeout(() => this.fetchMonitoring(), 5000);
       }
-    },
-    formatPercent(v) {
-      return (v === undefined || v === null || isNaN(v)) ? '-' : v + '%';
-    },
-    formatBytes(bytes) {
-      if (bytes === undefined || bytes === null || isNaN(bytes) || bytes < 0) return '-';
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B','KB','MB','GB','TB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    },
-    formatUptime(s) {
-      if (!s && s !== 0) return '-';
-      const d = Math.floor(s / 86400);
-      const h = Math.floor((s % 86400) / 3600);
-      const m = Math.floor((s % 3600) / 60);
-      return `${d}d ${h}h ${m}m`;
-    },
-    sparklinePoints(values) {
-      if (!values || values.length < 2) return '0,30 100,30';
-      const h = 30, w = 100;
-      return values.map((v, i) => {
-        const x = (i / (values.length - 1)) * w;
-        const y = h - (Math.max(0, Math.min(v, 100)) / 100) * h;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
-    },
-    sparklineAuto(values) {
-      if (!values || values.length < 2) return '0,30 100,30';
-      const h = 30, w = 100;
-      const min = Math.min(...values);
-      const range = Math.max(...values) - min || 1;
-      return values.map((v, i) => {
-        const x = (i / (values.length - 1)) * w;
-        const y = h - ((v - min) / range) * h;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      }).join(' ');
-    },
-    serviceColor(name) {
-      const map = {
-        mgmt: 'bg-slate-500',
-        dante: 'bg-blue-500',
-        aes67: 'bg-cyan-500',
-        ptp: 'bg-yellow-500',
-        artnet: 'bg-red-500',
-        sacn: 'bg-purple-500',
-        ndi: 'bg-pink-500',
-        st2110: 'bg-orange-500',
-        sdi: 'bg-indigo-500',
-        proprietary: 'bg-slate-600'
-      };
-      const n = (name || '').toLowerCase();
-      for (const k in map) if (n.includes(k)) return map[k];
-      return 'bg-emerald-500';
     },
     async loadPresets() {
       try {
@@ -623,27 +617,6 @@ createApp({
         this.isLoading = false;
       }
     },
-    interfaceMac(name) {
-      const iface = (this.availableInterfaces || []).find(i => (typeof i === 'string' ? i : i.name) === name);
-      return iface && typeof iface === 'object' ? iface.mac : '';
-    },
-    mdnsFriendlyName(r) {
-      const keys = ['fn=', 'name=', 'friendlyname=', 'friendly_name=', 'devicename=', 'device_name=', 'model='];
-      const txts = r.txt || [];
-      for (const k of keys) {
-        const t = txts.find(x => x.toLowerCase().startsWith(k));
-        if (t) {
-          const v = t.substring(k.length);
-          if (v) return v;
-        }
-      }
-      return r.name || '-';
-    },
-    exploreMdns(name) {
-      const hasTransport = /\._(tcp|udp)$/.test(name);
-      this.mdnsService = hasTransport ? name : name + '._tcp';
-      this.runMdns();
-    },
     async loadNtp() {
       try {
         const res = await api('/api/ntp', 'GET');
@@ -658,7 +631,8 @@ createApp({
         const res = await api('/api/ntp/set', 'POST', {
           enabled: this.ntp.enabled,
           enable_server: this.ntp.enable_server,
-          servers: this.ntp.servers
+          servers: this.ntp.servers,
+          timezone: this.ntp.timezone
         });
         this.ntp = { ...this.ntp, ...res.data };
         this.toast('NTP settings saved', 'success');
@@ -667,6 +641,19 @@ createApp({
       } finally {
         this.isLoading = false;
       }
+    },
+    async fetchNtpTime() {
+      try {
+        const res = await api('/api/time', 'GET');
+        this.ntpTime = { ...this.ntpTime, ...res.data };
+      } catch (e) {}
+    },
+    startNtpTime() {
+      this.stopNtpTime();
+      this.ntpTimeInterval = setInterval(() => this.fetchNtpTime(), 1000);
+    },
+    stopNtpTime() {
+      if (this.ntpTimeInterval) { clearInterval(this.ntpTimeInterval); this.ntpTimeInterval = null; }
     },
     addNtpServer() {
       const s = (this.ntp.newServer || '').trim();

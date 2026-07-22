@@ -1,0 +1,55 @@
+        <div v-if="currentTab==='ntp'" class="space-y-6">
+          <h2 class="text-2xl font-bold mb-4">NTP server</h2>
+          <div class="bg-white dark:bg-slate-800 p-4 rounded shadow max-w-2xl flex items-center gap-4">
+            <div class="bg-blue-100 dark:bg-blue-900 p-3 rounded-full text-blue-600 dark:text-blue-200">
+              <i class="fas fa-clock text-xl"></i>
+            </div>
+            <div>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Heure NTP</p>
+              <p class="text-2xl font-mono font-bold">{{ ntpTime.time }}</p>
+              <p class="text-sm text-slate-600 dark:text-slate-300">{{ ntpTime.date }} <span class="text-xs uppercase">{{ ntpTime.timezone }}</span></p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Source : {{ ntpTime.source || '-' }} <span v-if="ntpTime.stratum" class="text-xs">(stratum {{ ntpTime.stratum }})</span></p>
+            </div>
+          </div>
+          <form @submit.prevent="saveNtp" class="bg-white dark:bg-slate-800 p-4 rounded shadow max-w-2xl space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="font-medium">Service NTP</span>
+              <span :class="ntp.running ? 'text-green-500' : 'text-red-500'">{{ ntp.running ? 'Running' : 'Stopped' }}</span>
+            </div>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" v-model="ntp.enabled" />
+              <span>Enable NTP client</span>
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" v-model="ntp.enable_server" />
+              <span>Act as NTP server for local networks / VLANs</span>
+            </label>
+            <div>
+              <label for="timezone" class="block text-sm font-medium mb-1">Timezone</label>
+              <select id="timezone" v-model="ntp.timezone" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 mb-4">
+                <option v-for="tz in timezones" :key="tz.value" :value="tz.value">{{ tz.label }}</option>
+              </select>
+            </div>
+            <div>
+              <p class="text-sm font-medium mb-2">Upstream NTP servers</p>
+              <div class="flex gap-2 mb-2">
+                <input v-model="ntp.newServer" @keyup.enter="addNtpServer" placeholder="e.g. 0.openwrt.pool.ntp.org" aria-label="Nouveau serveur NTP" class="flex-1 p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                <button type="button" @click="addNtpServer" class="bg-slate-200 dark:bg-slate-700 px-3 py-2 rounded hover:bg-slate-300 dark:hover:bg-slate-600">Add</button>
+              </div>
+              <div class="space-y-1">
+                <div v-for="(s, idx) in ntp.servers" :key="idx" class="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded">
+                  <span class="font-mono text-sm">{{ s }}</span>
+                  <button type="button" @click="removeNtpServer(s)" class="text-red-500 hover:text-red-700 text-sm">Remove</button>
+                </div>
+              </div>
+            </div>
+            <button type="submit" :disabled="isLoading" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Save & Restart NTP</button>
+          </form>
+
+          <div class="bg-white dark:bg-slate-800 p-4 rounded shadow max-w-2xl">
+            <h3 class="font-semibold mb-2">Utilisation</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              Quand le serveur NTP est actif, les machines de chaque VLAN peuvent pointer vers l'IP de l'interface StageNeth de leur VLAN (par exemple <code>10.20.0.1</code> pour le service de VLAN 20).
+            </p>
+          </div>
+        </div>
