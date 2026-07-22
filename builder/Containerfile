@@ -20,6 +20,10 @@ RUN apt-get update \
         libncurses5-dev \
         libssl-dev \
         python3-setuptools \
+        python3 \
+        python-is-python3 \
+        perl \
+        which \
         rsync \
         swig \
         unzip \
