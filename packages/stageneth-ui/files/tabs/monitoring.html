@@ -1,5 +1,10 @@
           <div v-if="currentTab==='monitoring'">
             <h2 class="text-lg font-semibold mb-3">Monitoring</h2>
+            <div v-if="healthAlerts.length" class="mb-4 space-y-2">
+              <div v-for="alert in healthAlerts" :key="alert.message" class="p-3 rounded border-l-4" :class="alert.type==='error' ? 'bg-red-50 dark:bg-red-900 border-red-500 text-red-800 dark:text-red-100' : alert.type==='warning' ? 'bg-yellow-50 dark:bg-yellow-900 border-yellow-500 text-yellow-800 dark:text-yellow-100' : 'bg-blue-50 dark:bg-blue-900 border-blue-500 text-blue-800 dark:text-blue-100'">
+                <p class="text-sm font-semibold"><i :class="alert.icon" class="mr-2"></i>{{ alert.message }}</p>
+              </div>
+            </div>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
                 <p class="text-sm text-slate-500 dark:text-slate-400">CPU</p>

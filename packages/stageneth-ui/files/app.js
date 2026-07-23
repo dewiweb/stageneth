@@ -164,7 +164,28 @@ createApp({
         ]}
       ];
     },
-    visibleTabs() { return this.visibleTabGroups.flatMap(g => g.tabs).map(t => t.key); }
+    visibleTabs() { return this.visibleTabGroups.flatMap(g => g.tabs).map(t => t.key); },
+    healthAlerts() {
+      const alerts = [];
+      if (this.hasPendingChanges) {
+        alerts.push({ type: 'warning', message: 'Modifications en attente : cliquez sur Save & Apply pour les appliquer.', icon: 'fas fa-exclamation-circle' });
+      }
+      const ntpRunning = String(this.ntp?.running || '0') === '1';
+      const ntpServer = String(this.ntp?.enable_server || '0') === '1';
+      if (ntpServer && !ntpRunning) {
+        alerts.push({ type: 'error', message: 'Le serveur NTP est activé mais n\'est pas en cours d\'exécution.', icon: 'fas fa-clock' });
+      }
+      const cpu = Number(this.monitoring?.cpu_percent || 0);
+      if (cpu > 80) alerts.push({ type: 'error', message: `CPU très élevé : ${cpu.toFixed(1)}%`, icon: 'fas fa-microchip' });
+      else if (cpu > 60) alerts.push({ type: 'warning', message: `CPU élevé : ${cpu.toFixed(1)}%`, icon: 'fas fa-microchip' });
+      const mem = Number(this.monitoring?.memory?.used_percent || 0);
+      if (mem > 85) alerts.push({ type: 'warning', message: `Mémoire élevée : ${mem.toFixed(1)}%`, icon: 'fas fa-memory' });
+      const svcStatus = this.monitoring?.services || {};
+      for (const [svc, ok] of Object.entries(svcStatus)) {
+        if (!ok) alerts.push({ type: 'warning', message: `Service ${svc} ne répond pas.`, icon: 'fas fa-network-wired' });
+      }
+      return alerts;
+    }
   },
   watch: {
     currentTab(tab) {
