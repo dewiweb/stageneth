@@ -26,7 +26,7 @@
             </label>
             <div>
               <label for="timezone" class="block text-sm font-medium mb-1">Timezone</label>
-              <select id="timezone" v-model="ntp.timezone" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 mb-4">
+              <select id="timezone" v-model="ntp.timezone" @change="fetchNtpTime" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 mb-4">
                 <option v-for="tz in timezones" :key="tz.value" :value="tz.value">{{ tz.label }}</option>
               </select>
             </div>

@@ -644,7 +644,8 @@ createApp({
     },
     async fetchNtpTime() {
       try {
-        const res = await api('/api/time', 'GET');
+        const tz = encodeURIComponent(this.ntp.timezone || 'UTC0');
+        const res = await api('/api/time?tz=' + tz, 'GET');
         this.ntpTime = { ...this.ntpTime, ...res.data };
       } catch (e) {}
     },

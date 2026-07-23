@@ -845,9 +845,28 @@ func ntpSet(w http.ResponseWriter, r *http.Request) {
 }
 
 func timeGet(w http.ResponseWriter, r *http.Request) {
-	dateOut, _ := exec.Command("date", "+%Y-%m-%d").Output()
-	timeOut, _ := exec.Command("date", "+%H:%M:%S").Output()
-	tzOut, _ := exec.Command("date", "+%Z").Output()
+	tz := r.URL.Query().Get("tz")
+	if tz == "" {
+		if out, err := exec.Command("uci", "-q", "get", "system.@system[0].timezone").Output(); err == nil {
+			tz = strings.TrimSpace(string(out))
+		}
+	}
+	if tz == "" {
+		tz = "UTC0"
+	}
+	env := append(os.Environ(), "TZ="+tz)
+
+	dateCmd := exec.Command("date", "+%Y-%m-%d")
+	dateCmd.Env = env
+	dateOut, _ := dateCmd.Output()
+
+	timeCmd := exec.Command("date", "+%H:%M:%S")
+	timeCmd.Env = env
+	timeOut, _ := timeCmd.Output()
+
+	tzCmd := exec.Command("date", "+%Z")
+	tzCmd.Env = env
+	tzOut, _ := tzCmd.Output()
 
 	source, stratum, offset := "-", "", ""
 	if out, err := exec.Command("ntpq", "-pn", "127.0.0.1").Output(); err == nil {
