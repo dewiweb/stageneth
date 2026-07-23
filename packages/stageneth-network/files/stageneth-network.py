@@ -291,6 +291,17 @@ def apply():
         commands.extend(generate_qos(svc_name, svc))
 
     commands.extend(generate_forwardings(forwardings))
+    # Allow management zone to initiate control traffic to all AV service zones
+    for s in service_names:
+        if s in ('mgmt', 'guest'):
+            continue
+        fwd = f"mgmt_to_{s}"
+        commands.extend([
+            f"set firewall.{fwd}=forwarding",
+            qset(f"firewall.{fwd}", 'src', 'mgmt'),
+            qset(f"firewall.{fwd}", 'dest', s),
+            qset(f"firewall.{fwd}", 'enabled', '1'),
+        ])
     commands.extend(generate_umdns(services))
 
     batch_commands(commands)

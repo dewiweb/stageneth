@@ -56,6 +56,16 @@ config service 'st2110'
     option multicast '1'
 ```
 
+## Contrôle depuis le VLAN mgmt
+
+Certains équipements AV n'ont qu'une seule interface et vivent dans leur VLAN dédié (par exemple `dante`). Le contrôleur, lui, est souvent placé dans le VLAN `mgmt`. StageNeth prend ce cas en charge :
+
+- **mDNS** : le refleteur `umdns` est activé entre `svc_mgmt` et tous les VLANs AV (sauf `guest`). Ainsi Dante Controller, NDI Studio Monitor, etc., peuvent découvrir les endpoints d'autres VLANs.
+- **Firewall** : des règles `mgmt_to_<service>` sont automatiquement générées pour permettre au VLAN `mgmt` d'initier le trafic de contrôle unicast vers chaque VLAN AV (Dante Controller, web UI, NMOS, etc.). Le trafic retour est autorisé par conntrack.
+- **Les flux média multicast** restent confinés dans leur VLAN : StageNeth ne route pas le multicast entre VLANs AV.
+
+> Les équipements à NIC unique qui mélangent streams, contrôle et PTP doivent être connectés à un port d'accès (untagged ou tagged) du bon VLAN AV. Le contrôleur reste dans `mgmt` et profite des forwardings + mDNS pour piloter.
+
 ## Vérifications rapides
 
 - `ip link show eth1.<vlan>` : VLAN up
