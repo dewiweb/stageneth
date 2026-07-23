@@ -87,6 +87,7 @@ createApp({
       presets: [],
       selectedPreset: '',
       selectedPresetServices: [],
+      switchVendor: 'generic',
       editing: { type: '', name: '' },
       hasPendingChanges: false,
       showWizard: false,
@@ -139,7 +140,16 @@ createApp({
     firewallForwardings() { return this.filterType('firewall', 'forwarding'); },
     firewallRules() { return this.filterType('firewall', 'rule'); },
     servicesCount() { return Object.keys(this.services || {}).length; },
-    leasesCount() { return (this.monitoring.dhcp_leases || []).length; }
+    leasesCount() { return (this.monitoring.dhcp_leases || []).length; },
+    vendorTip() {
+      const tips = {
+        generic: 'Schéma standard 802.1Q. Choisissez un constructeur pour des conseils spécifiques.',
+        luminex: 'GigaCore gère PTP, IGMP et les profils AV. Laissez le multicast/PTP au switch.',
+        cisco: 'Activez IGMP snooping, IGMP querier, jumbo frames et trust DSCP sur le port trunk.',
+        netgear: 'Activez IGMP snooping, IGMP querier, jumbo frames et classofservice trust DSCP.'
+      };
+      return tips[this.switchVendor] || tips.generic;
+    }
   },
   watch: {
     currentTab(tab) {
@@ -170,7 +180,17 @@ createApp({
     else document.documentElement.classList.remove('dark');
     await this.checkFirstboot();
     if (this.showWizard) return;
-    if (this.token) { await this.refresh(); this.startMonitoring(); await this.loadPresets(); await this.loadLan(); await this.loadWan(); await this.loadNetworkInterfaces(); await this.ensureDefaultBinding(); await this.loadNtp(); }
+    if (this.token) {
+      await this.refresh();
+      this.switchVendor = (this.uci.stageneth?.values?.globals?.switch_vendor) || 'generic';
+      this.startMonitoring();
+      await this.loadPresets();
+      await this.loadLan();
+      await this.loadWan();
+      await this.loadNetworkInterfaces();
+      await this.ensureDefaultBinding();
+      await this.loadNtp();
+    }
   },
   beforeUnmount() {
     this.stopMonitoring();
@@ -457,6 +477,19 @@ createApp({
       } catch (e) {
         this.toast('Apply failed: ' + e.message, 'error');
         this.hasPendingChanges = true;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async saveVendor() {
+      this.isLoading = true;
+      try {
+        await this.uciSet('stageneth', 'globals', 'stageneth', { switch_vendor: this.switchVendor });
+        await this.uciCommit('stageneth');
+        this.hasPendingChanges = true;
+        this.toast('Switch vendor saved', 'success');
+      } catch (e) {
+        this.toast('Save vendor failed: ' + e.message, 'error');
       } finally {
         this.isLoading = false;
       }

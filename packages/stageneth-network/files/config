@@ -1,5 +1,7 @@
 config stageneth 'globals'
 	option enabled '1'
+	option switch_vendor 'generic'
+	option trunk 'eth1'
 
 config service 'mgmt'
 	option vlan_id '10'
@@ -88,14 +90,6 @@ config service 'proprietary'
 	option dscp '0'
 	option ptp '0'
 	option multicast '1'
-
-config binding 'eth1_dante'
-	option interface 'eth1'
-	option service 'dante'
-
-config binding 'eth2_sacn'
-	option interface 'eth2'
-	option service 'sacn'
 
 config forwarding 'dante_to_mgmt'
 	option src 'dante'

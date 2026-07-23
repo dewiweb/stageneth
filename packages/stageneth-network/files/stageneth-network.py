@@ -70,23 +70,34 @@ def qset(section, option, value):
     return f"set {section}.{option}={value}"
 
 
-def generate_network(svc_name, svc, bindings):
+def get_mtu(svc_name, svc):
+    """Return per-service MTU (ST2110 needs jumbo frames)."""
+    mtu = svc.get('mtu')
+    if mtu:
+        return mtu
+    if svc_name == 'st2110':
+        return '9000'
+    return '1500'
+
+
+def generate_network(svc_name, svc, bindings, trunk):
     """Generate UCI commands for network config for a service."""
     available = available_interfaces()
     vlan_id = svc.get('vlan_id', '1')
+    mtu = get_mtu(svc_name, svc)
     ifname = f"svc_{svc_name}"
     bridge = f"br_{svc_name}"
     ports = []
     for bname, bcfg in bindings.items():
         if bcfg.get('service') == svc_name:
-            iface = bcfg.get('interface', 'eth0')
+            iface = bcfg.get('interface', trunk)
             iface = fallback_iface(iface, available)
             if svc.get('untagged') == '1':
                 ports.append(iface)
             else:
                 ports.append(f"{iface}.{vlan_id}")
     if not ports:
-        iface = fallback_iface('eth0', available)
+        iface = fallback_iface(trunk, available)
         if svc.get('untagged') == '1':
             ports = [iface]
         else:
@@ -99,6 +110,7 @@ def generate_network(svc_name, svc, bindings):
         qset(f"network.{ifname}", 'proto', 'static'),
         qset(f"network.{ifname}", 'ipaddr', ipaddr),
         qset(f"network.{ifname}", 'netmask', '255.255.255.0'),
+        qset(f"network.{ifname}", 'mtu', mtu),
     ]
     for port in ports:
         if '.' in port:
@@ -126,7 +138,7 @@ def generate_firewall(svc_name, svc):
     """Generate UCI commands for firewall zone for a service."""
     zone = f"zone_{svc_name}"
     ifname = f"svc_{svc_name}"
-    input_policy = 'ACCEPT' if svc.get('multicast') == '1' else 'REJECT'
+    input_policy = 'ACCEPT' if svc_name == 'mgmt' else 'REJECT'
     forward_policy = 'REJECT'
     dhcp_rule = f"allow_dhcp_{svc_name}"
     dns_rule = f"allow_dns_{svc_name}"
@@ -176,12 +188,14 @@ def generate_forwardings(forwardings):
 def generate_dhcp(svc_name, svc):
     """Generate a DHCP pool for a service VLAN (.101-.254 dynamic, .2-.100 static)."""
     ifname = f"svc_{svc_name}"
+    ipaddr = f"10.{svc.get('vlan_id', '1')}.0.1"
     return [
         f"set dhcp.{ifname}=dhcp",
         qset(f"dhcp.{ifname}", 'interface', ifname),
         qset(f"dhcp.{ifname}", 'start', '101'),
         qset(f"dhcp.{ifname}", 'limit', '154'),
         qset(f"dhcp.{ifname}", 'leasetime', '12h'),
+        f"add_list dhcp.{ifname}.dhcp_option='42,{ipaddr}'",
         f"delete dhcp.{ifname}.interface_name",
         f"add_list dhcp.{ifname}.interface_name={ifname}",
     ]
@@ -233,8 +247,9 @@ def apply():
                 if svc not in service_names:
                     commands.append(f"delete firewall.{section}")
 
+    trunk = values.get('globals', {}).get('trunk', 'eth1')
     for svc_name, svc in services.items():
-        commands.extend(generate_network(svc_name, svc, bindings))
+        commands.extend(generate_network(svc_name, svc, bindings, trunk))
         commands.extend(generate_firewall(svc_name, svc))
         commands.extend(generate_dhcp(svc_name, svc))
         commands.extend(generate_qos(svc_name, svc))

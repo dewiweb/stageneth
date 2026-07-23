@@ -1,6 +1,21 @@
           <div v-if="currentTab==='network'" class="space-y-6">
 
             <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+              <h2 class="text-lg font-semibold mb-3">Switch AV / Infrastructure</h2>
+              <p class="text-xs text-slate-500 mb-2">Sélectionnez le constructeur du switch pour afficher les recommandations</p>
+              <div class="flex flex-col md:flex-row gap-4 items-start md:items-center mb-4">
+                <select v-model="switchVendor" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                  <option value="generic">Générique</option>
+                  <option value="luminex">Luminex GigaCore</option>
+                  <option value="cisco">Cisco SG350 / AV</option>
+                  <option value="netgear">Netgear AV</option>
+                </select>
+                <button @click="saveVendor" :disabled="isLoading" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Save vendor</button>
+              </div>
+              <p class="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-700 p-2 rounded">{{ vendorTip }}</p>
+            </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
               <h2 class="text-lg font-semibold mb-3">StageNeth Services Network</h2>
               <p class="text-xs text-slate-500 mb-2">Overview of auto-generated network objects per StageNeth service</p>
               <table class="w-full text-left text-sm mb-4">

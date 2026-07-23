@@ -1,0 +1,13 @@
+#!/bin/sh
+# StageNeth NTP defaults: enable local NTP server and set upstream pool
+
+[ -f /etc/config/system ] || exit 0
+
+uci -q get system.ntp.enabled >/dev/null || uci set system.ntp.enabled='1'
+uci -q get system.ntp.enable_server >/dev/null || uci set system.ntp.enable_server='1'
+uci -q get system.ntp.server >/dev/null || {
+    uci add_list system.ntp.server='0.openwrt.pool.ntp.org'
+    uci add_list system.ntp.server='1.openwrt.pool.ntp.org'
+    uci add_list system.ntp.server='2.openwrt.pool.ntp.org'
+}
+uci commit system

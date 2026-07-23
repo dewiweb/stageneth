@@ -16,7 +16,7 @@ define Package/stageneth-network
 	SECTION:=base
 	CATEGORY:=StageNeth
 	TITLE:=StageNeth multi-service networking
-	DEPENDS:=+python3 +firewall4
+	DEPENDS:=+python3 +firewall4 +ethtool +tcpdump
 	PKGARCH:=all
 endef
 
@@ -43,6 +43,9 @@ define Package/stageneth-network/install
 
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/stageneth-network.init $(1)/etc/init.d/stageneth-network
+
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/uci-defaults/99_stageneth-ntp $(1)/etc/uci-defaults/
 endef
 
 define Package/stageneth-network/postinst
