@@ -232,6 +232,20 @@ def tune_nics():
             pass
 
 
+def generate_umdns(services):
+    """Generate umdns reflector config across StageNeth service interfaces (except guest/internet)."""
+    cmds = [
+        "set umdns.umdns=umdns",
+        qset("umdns.umdns", 'enabled', '1'),
+        "delete umdns.umdns.network",
+    ]
+    for svc_name in services:
+        if svc_name == 'guest':
+            continue
+        cmds.append(f"add_list umdns.umdns.network=svc_{svc_name}")
+    return cmds
+
+
 def apply():
     st = uci_show('stageneth')
     sections = st['sections']
@@ -277,12 +291,14 @@ def apply():
         commands.extend(generate_qos(svc_name, svc))
 
     commands.extend(generate_forwardings(forwardings))
+    commands.extend(generate_umdns(services))
 
     batch_commands(commands)
     subprocess.run(['uci', '-q', 'commit', 'network'], check=True)
     subprocess.run(['uci', '-q', 'commit', 'firewall'], check=True)
     subprocess.run(['uci', '-q', 'commit', 'dhcp'], check=True)
     subprocess.run(['uci', '-q', 'commit', 'stageneth'], check=True)
+    subprocess.run(['uci', '-q', 'commit', 'umdns'], check=True)
 
     # Remove stale second dnsmasq instance and reload services
     subprocess.run(['uci', '-q', 'delete', 'dhcp.bb'], check=False)
@@ -290,6 +306,8 @@ def apply():
     subprocess.run(['/etc/init.d/network', 'reload'], check=False)
     tune_nics()
     subprocess.run(['/etc/init.d/firewall', 'reload'], check=False)
+    subprocess.run(['/etc/init.d/umdns', 'enable'], check=False)
+    subprocess.run(['/etc/init.d/umdns', 'restart'], check=False)
     subprocess.run(['/etc/init.d/dnsmasq', 'stop'], check=False)
     subprocess.run(['sleep', '1'], check=False)
     subprocess.run(['/etc/init.d/dnsmasq', 'start'], check=False)

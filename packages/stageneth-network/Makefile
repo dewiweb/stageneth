@@ -16,7 +16,7 @@ define Package/stageneth-network
 	SECTION:=base
 	CATEGORY:=StageNeth
 	TITLE:=StageNeth multi-service networking
-	DEPENDS:=+python3 +firewall4 +ethtool +tcpdump +snmpd +rsyslog
+	DEPENDS:=+python3 +firewall4 +ethtool +tcpdump +snmpd +rsyslog +umdns
 	PKGARCH:=all
 endef
 
