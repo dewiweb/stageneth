@@ -3,6 +3,8 @@
 Routeur dédié au spectacle vivant, basé sur **OpenWrt**.
 StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur réseau Python pour séparer les flux audio/vidéo/lumière (AV) du réseau de gestion, tout en fournissant les services DHCP, NTP, mDNS et SNMP nécessaires aux équipements scéniques.
 
+> **État du projet** : StageNeth est en **version de développement** (`0.2.0-beta.x`). Beaucoup de fonctionnalités restent à stabiliser, à valider sur banc et à compléter avant d'obtenir un OS déployable en production. Ne pas utiliser sur un spectacle réel sans validation approfondie.
+
 ## Fonctionnalités
 
 - **Interface web Vue 3** en HTTPS avec deux niveaux d'accès : mode simple (opérateur) et mode expert (tech)
