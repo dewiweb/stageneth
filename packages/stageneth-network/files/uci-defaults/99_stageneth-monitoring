@@ -1,0 +1,10 @@
+#!/bin/sh
+# StageNeth monitoring defaults: enable snmpd agent and rsyslog server if installed
+
+[ -f /etc/config/snmpd ] && {
+  uci -q set snmpd.snmpd.enabled='1'
+  uci -q commit snmpd
+}
+
+[ -x /etc/init.d/snmpd ] && /etc/init.d/snmpd enable
+[ -x /etc/init.d/rsyslog ] && /etc/init.d/rsyslog enable
