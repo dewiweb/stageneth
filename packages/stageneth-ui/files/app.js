@@ -12,6 +12,7 @@ createApp({
       messageType: 'info',
       isLoading: false,
       currentTab: localStorage.getItem('stageneth_tab') || 'simple',
+      simpleMode: (localStorage.getItem('stageneth_simple') !== null ? localStorage.getItem('stageneth_simple') === 'true' : true),
       mobileMenuOpen: false,
       messageTimeout: null,
       tabGroups: [
@@ -150,7 +151,20 @@ createApp({
         netgear: 'Activez IGMP snooping, IGMP querier, jumbo frames et classofservice trust DSCP.'
       };
       return tips[this.switchVendor] || tips.generic;
-    }
+    },
+    visibleTabGroups() {
+      if (!this.simpleMode) return this.tabGroups;
+      return [
+        { label: 'Vue d\'ensemble', tabs: [
+          { key: 'simple', label: 'Tableau de bord', icon: 'fas fa-home' }
+        ]},
+        { label: 'Supervision', tabs: [
+          { key: 'monitoring', label: 'Monitoring', icon: 'fas fa-chart-line' },
+          { key: 'logs', label: 'Logs', icon: 'fas fa-scroll' }
+        ]}
+      ];
+    },
+    visibleTabs() { return this.visibleTabGroups.flatMap(g => g.tabs).map(t => t.key); }
   },
   watch: {
     currentTab(tab) {
@@ -185,6 +199,8 @@ createApp({
       await this.refresh();
       this.switchVendor = (this.uci.stageneth?.values?.globals?.switch_vendor) || 'generic';
       this.trunk = (this.uci.stageneth?.values?.globals?.trunk) || 'eth1';
+      this.simpleMode = (localStorage.getItem('stageneth_simple') !== null ? localStorage.getItem('stageneth_simple') === 'true' : true);
+      if (!this.visibleTabs.includes(this.currentTab)) this.currentTab = 'simple';
       this.startMonitoring();
       await this.loadPresets();
       await this.loadLan();
@@ -469,6 +485,12 @@ createApp({
       this.isDark = !this.isDark;
       document.documentElement.classList.toggle('dark', this.isDark);
       localStorage.setItem('stageneth_theme', this.isDark ? 'dark' : 'light');
+    },
+    toggleSimpleMode() {
+      this.simpleMode = !this.simpleMode;
+      localStorage.setItem('stageneth_simple', this.simpleMode);
+      if (!this.visibleTabs.includes(this.currentTab)) this.currentTab = 'simple';
+      this.mobileMenuOpen = false;
     },
     async apply() {
       this.hasPendingChanges = false;

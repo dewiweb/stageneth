@@ -38,6 +38,7 @@
       </div>
       <div class="flex items-center gap-3">
         <button v-if="token" @click="refresh(); fetchMonitoring();" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" title="Refresh data"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+        <button v-if="token" @click="toggleSimpleMode" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" :title="simpleMode ? 'Passer en mode expert' : 'Passer en mode simple'"><i :class="simpleMode ? 'fas fa-cogs' : 'fas fa-user'" class="mr-1"></i> {{ simpleMode ? 'Expert' : 'Simple' }}</button>
         <button v-if="token" @click="toggleTheme" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" :title="isDark ? 'Light mode' : 'Dark mode'">
           <i :class="isDark ? 'fas fa-sun' : 'fas fa-moon'"></i>
         </button>
@@ -55,7 +56,7 @@
       <button v-if="token" @click="mobileMenuOpen=!mobileMenuOpen" class="md:hidden fixed top-4 right-16 z-50 text-white p-2 rounded bg-slate-800"><i class="fas fa-bars"></i></button>
       <div v-if="token && mobileMenuOpen" @click="mobileMenuOpen=false" class="md:hidden fixed inset-0 bg-black/50 z-30"></div>
       <aside v-if="token" :class="['bg-slate-900 dark:bg-slate-950 border-r border-slate-700 p-4 space-y-4 transition-transform duration-200 md:translate-x-0 md:static md:block', mobileMenuOpen ? 'fixed inset-y-0 left-0 z-40 w-64 translate-x-0' : 'fixed inset-y-0 left-0 z-40 w-64 -translate-x-full md:translate-x-0 md:w-56 md:static']">
-        <div v-for="g in tabGroups" :key="g.label">
+        <div v-for="g in visibleTabGroups" :key="g.label">
           <p class="text-xs uppercase text-slate-500 font-semibold mb-2 tracking-wider">{{ g.label }}</p>
           <div class="space-y-1">
             <button v-for="t in g.tabs" :key="t.key" @click="currentTab=t.key"
