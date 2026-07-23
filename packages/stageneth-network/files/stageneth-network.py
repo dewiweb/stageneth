@@ -218,6 +218,20 @@ def generate_qos(svc_name, svc):
     ]
 
 
+def tune_nics():
+    """Apply low-latency NIC tuning: disable EEE, increase rings, reduce interrupt coalescing."""
+    for iface in available_interfaces():
+        if any(iface.startswith(p) for p in ('lo', 'br-', 'bond', 'docker', 'veth', 'wg', 'tun')) or '.' in iface:
+            continue
+        try:
+            subprocess.run(['ethtool', '--set-eee', iface, 'eee', 'disabled'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['ethtool', '-G', iface, 'rx', '4096', 'tx', '4096'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['ethtool', '-C', iface, 'rx-usecs', '0', 'tx-usecs', '0'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['ethtool', '-K', iface, 'gro', 'off', 'tso', 'off', 'lro', 'off', 'gso', 'off'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            pass
+
+
 def apply():
     st = uci_show('stageneth')
     sections = st['sections']
@@ -274,6 +288,7 @@ def apply():
     subprocess.run(['uci', '-q', 'delete', 'dhcp.bb'], check=False)
     subprocess.run(['uci', '-q', 'commit', 'dhcp'], check=False)
     subprocess.run(['/etc/init.d/network', 'reload'], check=False)
+    tune_nics()
     subprocess.run(['/etc/init.d/firewall', 'reload'], check=False)
     subprocess.run(['/etc/init.d/dnsmasq', 'stop'], check=False)
     subprocess.run(['sleep', '1'], check=False)
