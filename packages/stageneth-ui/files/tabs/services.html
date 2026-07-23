@@ -21,13 +21,14 @@
               </div>
             </div>
             <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
-              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">VLAN</th><th class="p-2">DSCP</th><th class="p-2">Priority</th><th class="p-2">PTP</th><th class="p-2">Multicast</th><th class="p-2">Untagged</th><th class="p-2"></th></tr></thead>
+              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">VLAN</th><th class="p-2">DSCP</th><th class="p-2">Priority</th><th class="p-2">MTU</th><th class="p-2">PTP</th><th class="p-2">Multicast</th><th class="p-2">Untagged</th><th class="p-2"></th></tr></thead>
               <tbody>
                 <tr v-for="(s, name) in services" :key="name" class="border-b last:border-0">
                   <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
                   <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.vlan_id" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.vlan_id }}</span></td>
                   <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.dscp" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.dscp }}</span></td>
                   <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.priority" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.priority }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.mtu" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.mtu || 'auto' }}</span></td>
                   <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.ptp" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.ptp ? 'yes' : 'no' }}</span></td>
                   <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.multicast" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.multicast ? 'yes' : 'no' }}</span></td>
                   <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.untagged" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.untagged === '1' ? 'yes' : 'no' }}</span></td>
@@ -35,11 +36,12 @@
                 </tr>
               </tbody>
             </table>
-            <form @submit.prevent="addService" class="grid grid-cols-8 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
+            <form @submit.prevent="addService" class="grid grid-cols-9 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
               <input v-model="newService.name" placeholder="name" required aria-label="Nom du service" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
               <input v-model="newService.vlan_id" placeholder="vlan" aria-label="VLAN" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
               <input v-model="newService.dscp" placeholder="dscp" aria-label="DSCP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
               <input v-model="newService.priority" placeholder="prio" aria-label="Priorité" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.mtu" placeholder="mtu" aria-label="MTU" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
               <select v-model="newService.ptp" aria-label="PTP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">ptp</option><option value="0">no ptp</option></select>
               <select v-model="newService.multicast" aria-label="Multicast" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">multicast</option><option value="0">no</option></select>
               <select v-model="newService.untagged" aria-label="Untagged" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">untagged</option><option value="0">tagged</option></select>

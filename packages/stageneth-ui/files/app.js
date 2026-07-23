@@ -38,7 +38,7 @@ createApp({
       ],
       isDark: true,
       uci: { stageneth: {}, network: {}, dhcp: {}, firewall: {} },
-      newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', ptp: '0', multicast: '0', untagged: '0' },
+      newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', mtu: '', ptp: '0', multicast: '0', untagged: '0' },
       newBinding: { name: '', interface: '', service: '' },
       newForwarding: { name: '', src: '', dest: '', enabled: '1' },
       newInterface: { name: '', proto: 'static', ipaddr: '', netmask: '', device: '' },
@@ -88,6 +88,7 @@ createApp({
       selectedPreset: '',
       selectedPresetServices: [],
       switchVendor: 'generic',
+      trunk: 'eth1',
       editing: { type: '', name: '' },
       hasPendingChanges: false,
       showWizard: false,
@@ -183,6 +184,7 @@ createApp({
     if (this.token) {
       await this.refresh();
       this.switchVendor = (this.uci.stageneth?.values?.globals?.switch_vendor) || 'generic';
+      this.trunk = (this.uci.stageneth?.values?.globals?.trunk) || 'eth1';
       this.startMonitoring();
       await this.loadPresets();
       await this.loadLan();
@@ -326,7 +328,7 @@ createApp({
     },
     startEdit(type, name, data) {
       this.editing = { type, name };
-      if (type === 'service') Object.assign(this.newService, { name, vlan_id: data.vlan_id || '', dscp: data.dscp || '', priority: data.priority || '', ptp: data.ptp || '0', multicast: data.multicast || '0', untagged: data.untagged || '0' });
+      if (type === 'service') Object.assign(this.newService, { name, vlan_id: data.vlan_id || '', dscp: data.dscp || '', priority: data.priority || '', mtu: data.mtu || '', ptp: data.ptp || '0', multicast: data.multicast || '0', untagged: data.untagged || '0' });
       else if (type === 'binding') Object.assign(this.newBinding, { name, interface: data.interface || '', service: data.service || '' });
       else if (type === 'forwarding') Object.assign(this.newForwarding, { name, src: data.src || '', dest: data.dest || '', enabled: data.enabled || '1' });
       else if (type === 'interface') Object.assign(this.newInterface, { name, proto: data.proto || 'static', ipaddr: data.ipaddr || '', netmask: data.netmask || '', device: data.device || '' });
@@ -342,8 +344,8 @@ createApp({
       const s = this.newService;
       const section = this.editing.type === 'service' ? this.editing.name : s.name;
       await this.addUci('stageneth', section, 'service', {
-        vlan_id: s.vlan_id, dscp: s.dscp, priority: s.priority, ptp: s.ptp, multicast: s.multicast, untagged: s.untagged
-      }, { newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', ptp: '0', multicast: '0', untagged: '0' }, editing: { type: '', name: '' } });
+        vlan_id: s.vlan_id, dscp: s.dscp, priority: s.priority, mtu: s.mtu, ptp: s.ptp, multicast: s.multicast, untagged: s.untagged
+      }, { newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', mtu: '', ptp: '0', multicast: '0', untagged: '0' }, editing: { type: '', name: '' } });
     },
     async addBinding() {
       const b = this.newBinding;
@@ -481,15 +483,15 @@ createApp({
         this.isLoading = false;
       }
     },
-    async saveVendor() {
+    async saveGlobals() {
       this.isLoading = true;
       try {
-        await this.uciSet('stageneth', 'globals', 'stageneth', { switch_vendor: this.switchVendor });
+        await this.uciSet('stageneth', 'globals', 'stageneth', { switch_vendor: this.switchVendor, trunk: this.trunk });
         await this.uciCommit('stageneth');
         this.hasPendingChanges = true;
-        this.toast('Switch vendor saved', 'success');
+        this.toast('Globals saved', 'success');
       } catch (e) {
-        this.toast('Save vendor failed: ' + e.message, 'error');
+        this.toast('Save globals failed: ' + e.message, 'error');
       } finally {
         this.isLoading = false;
       }
