@@ -94,3 +94,8 @@ config service 'proprietary'
 config forwarding 'dante_to_mgmt'
 	option src 'dante'
 	option dest 'mgmt'
+
+config binding 'st2110_nic'
+	option interface 'eth2'
+	option service 'st2110'
+
