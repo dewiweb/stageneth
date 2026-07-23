@@ -103,6 +103,14 @@ def generate_network(svc_name, svc, bindings, trunk):
         else:
             ports = [f"{iface}.{vlan_id}"]
 
+    if mtu == '9000':
+        for parent in set(p.split('.')[0] for p in ports):
+            parent_dev = f"pmtu_{parent.replace('.', '_')}"
+            cmds.extend([
+                f"set network.{parent_dev}=device",
+                qset(f"network.{parent_dev}", 'name', parent),
+                qset(f"network.{parent_dev}", 'mtu', '9000'),
+            ])
     ipaddr = f"10.{vlan_id}.0.1"
     cmds = [
         f"set network.{ifname}=interface",
