@@ -9,4 +9,30 @@
               </div>
               <button @click="saveSystem" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Enregistrer</button>
             </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-4">
+              <h3 class="text-lg font-semibold mb-2">Journal distant</h3>
+              <div class="mb-4 max-w-md">
+                <label class="flex items-center gap-2 mb-2">
+                  <input type="checkbox" v-model="logging.enabled" true-value="1" false-value="0" />
+                  <span class="text-sm">Activer l'envoi des journaux à un collecteur distant</span>
+                </label>
+              </div>
+              <div v-if="logging.enabled === '1'" class="mb-4 max-w-md">
+                <label class="block text-sm mb-1">Hôte collecteur</label>
+                <input v-model="logging.host" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" placeholder="192.168.10.5" />
+              </div>
+              <div v-if="logging.enabled === '1'" class="mb-4 max-w-md">
+                <label class="block text-sm mb-1">Port</label>
+                <input v-model="logging.port" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" placeholder="514" />
+              </div>
+              <div v-if="logging.enabled === '1'" class="mb-4 max-w-md">
+                <label class="block text-sm mb-1">Protocole</label>
+                <select v-model="logging.protocol" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                  <option value="udp">UDP</option>
+                  <option value="tcp">TCP</option>
+                </select>
+              </div>
+              <button @click="saveLogging" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Enregistrer la configuration syslog</button>
+            </div>
           </div>

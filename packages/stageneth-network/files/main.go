@@ -338,6 +338,33 @@ func run(name string, args ...string) {
 	exec.Command(name, args...).Run()
 }
 
+func generateRsyslog(st UciData) {
+	logging := st.Values["remote"]
+	if logging == nil {
+		return
+	}
+	confPath := "/etc/rsyslog.d/stageneth-remote.conf"
+	host := logging["host"]
+	if logging["enabled"] != "1" || host == "" {
+		os.Remove(confPath)
+	} else {
+		port := logging["port"]
+		if port == "" {
+			port = "514"
+		}
+		proto := logging["protocol"]
+		if proto == "" {
+			proto = "udp"
+		}
+		conf := fmt.Sprintf("# StageNeth remote syslog\n*.* action(type=\"omfwd\" target=\"%s\" port=\"%s\" protocol=\"%s\" queue.type=\"LinkedList\" action.resumeRetryCount=\"-1\" action.resumeInterval=\"30\")\n", host, port, proto)
+		if err := os.WriteFile(confPath, []byte(conf), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to write rsyslog remote config: %v\n", err)
+		}
+	}
+	run("/etc/init.d/rsyslog", "enable")
+	run("/etc/init.d/rsyslog", "restart")
+}
+
 func apply() {
 	st := uciShow("stageneth")
 	services := map[string]map[string]string{}
@@ -458,6 +485,7 @@ func apply() {
 
 	run("/etc/init.d/network", "reload")
 	tuneNics()
+	generateRsyslog(st)
 	run("/etc/init.d/firewall", "reload")
 	run("/etc/init.d/umdns", "enable")
 	run("/etc/init.d/umdns", "restart")

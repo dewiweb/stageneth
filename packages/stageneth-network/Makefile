@@ -7,7 +7,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=stageneth-network
 PKG_VERSION:=0.2.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 PKG_LICENSE:=GPL-2.0-only
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/stageneth-network-$(PKG_VERSION)

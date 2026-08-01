@@ -99,3 +99,9 @@ config binding 'st2110_nic'
 	option interface 'eth2'
 	option service 'st2110'
 
+config logging 'remote'
+	option enabled '0'
+	option host ''
+	option port '514'
+	option protocol 'udp'
+

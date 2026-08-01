@@ -106,6 +106,7 @@ createApp({
       lan: { ipaddr: '', netmask: '', gateway: '', proto: 'static', device: '' },
       wan: { ipaddr: '', netmask: '', gateway: '', proto: 'dhcp', device: '', macaddr: '' },
       system: { hostname: '' },
+      logging: { enabled: '0', host: '', port: '514', protocol: 'udp' },
       availableInterfaces: [],
       presets: [],
       selectedPreset: '',
@@ -521,9 +522,32 @@ createApp({
         const values = this.uci.system?.values || {};
         const sys = values['@system[0]'] || {};
         this.system.hostname = sys.hostname || 'stageneth';
+        const remote = (this.uci.stageneth.values || {}).remote || {};
+        this.logging.enabled = remote.enabled || '0';
+        this.logging.host = remote.host || '';
+        this.logging.port = remote.port || '514';
+        this.logging.protocol = remote.protocol || 'udp';
         this.toast('Données actualisées', 'success');
       } catch (e) {
         this.toast("Échec de l'actualisation : " + e.message, 'error');
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async saveLogging() {
+      this.isLoading = true;
+      try {
+        await this.uciSet('stageneth', 'remote', 'logging', {
+          enabled: this.logging.enabled,
+          host: this.logging.host,
+          port: this.logging.port,
+          protocol: this.logging.protocol
+        });
+        await this.uciCommit('stageneth');
+        this.toast('Configuration syslog enregistrée', 'success');
+        await this.refresh();
+      } catch (e) {
+        this.toast("Échec de l'enregistrement : " + e.message, 'error');
       } finally {
         this.isLoading = false;
       }
