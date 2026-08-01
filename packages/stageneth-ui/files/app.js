@@ -16,30 +16,40 @@ createApp({
       mobileMenuOpen: false,
       messageTimeout: null,
       tabGroups: [
-        { label: 'Vue d\'ensemble', tabs: [
-          { key: 'simple', label: 'Tableau de bord', icon: 'fas fa-home' }
+        { label: 'Dashboard', tabs: [
+          { key: 'simple', label: 'Tableau de bord', icon: 'fas fa-tachometer-alt' }
         ]},
-        { label: 'Services & flux', tabs: [
-          { key: 'services', label: 'Services', icon: 'fas fa-layer-group' },
-          { key: 'monitoring', label: 'Monitoring', icon: 'fas fa-chart-line' },
-          { key: 'snmp', label: 'SNMP', icon: 'fas fa-satellite-dish' },
-          { key: 'discovery', label: 'Discovery', icon: 'fas fa-search' },
-          { key: 'logs', label: 'Logs', icon: 'fas fa-scroll' }
+        { label: 'Services AV', tabs: [
+          { key: 'services', label: 'Services', icon: 'fas fa-stream' }
         ]},
-        { label: 'Infrastructure', tabs: [
-          { key: 'network', label: 'Network', icon: 'fas fa-network-wired' },
-          { key: 'dhcpdns', label: 'DHCP & DNS', icon: 'fas fa-server' },
-          { key: 'firewall', label: 'Firewall', icon: 'fas fa-shield-alt' },
-          { key: 'ntp', label: 'NTP', icon: 'fas fa-clock' }
-        ]},
-        { label: 'Paramètres', tabs: [
-          { key: 'credentials', label: 'Credentials', icon: 'fas fa-user-lock' },
+        { label: 'Réseau', tabs: [
+          { key: 'network', label: 'Réseau', icon: 'fas fa-network-wired' },
           { key: 'lan', label: 'LAN/WAN', icon: 'fas fa-ethernet' }
+        ]},
+        { label: 'DHCP & DNS', tabs: [
+          { key: 'dhcpdns', label: 'DHCP & DNS', icon: 'fas fa-server' }
+        ]},
+        { label: 'Pare-feu', tabs: [
+          { key: 'firewall', label: 'Pare-feu', icon: 'fas fa-shield-alt' }
+        ]},
+        { label: 'Système', tabs: [
+          { key: 'ntp', label: 'NTP', icon: 'fas fa-clock' },
+          { key: 'system', label: 'Système', icon: 'fas fa-cog' },
+          { key: 'credentials', label: 'Identifiants', icon: 'fas fa-user-lock' },
+          { key: 'backup', label: 'Sauvegarde', icon: 'fas fa-save' }
+        ]},
+        { label: 'Supervision', tabs: [
+          { key: 'monitoring', label: 'Supervision', icon: 'fas fa-heartbeat' },
+          { key: 'logs', label: 'Journaux', icon: 'fas fa-scroll' }
+        ]},
+        { label: 'Outils', tabs: [
+          { key: 'snmp', label: 'SNMP', icon: 'fas fa-sitemap' },
+          { key: 'discovery', label: 'Découverte', icon: 'fas fa-search' }
         ]}
       ],
       isDark: true,
-      uci: { stageneth: {}, network: {}, dhcp: {}, firewall: {} },
-      newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', mtu: '', ptp: '0', multicast: '0', untagged: '0' },
+      uci: { stageneth: {}, network: {}, dhcp: {}, firewall: {}, system: {} },
+      newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', mtu: '', ipaddr: '', netmask: '', ptp: '0', multicast: '0', untagged: '0' },
       newBinding: { name: '', interface: '', service: '' },
       newForwarding: { name: '', src: '', dest: '', enabled: '1' },
       newInterface: { name: '', proto: 'static', ipaddr: '', netmask: '', device: '' },
@@ -53,7 +63,7 @@ createApp({
       monitoring: {},
       monitoringHistory: { cpu: [], memory: [] },
       monitoringTimeout: null,
-      snmpQuery: { host: '', port: 161, community: 'public', oid: '1.3.6.1.2.1.1.1.0' },
+      snmpQuery: { host: '', port: 161, community: 'public', oid: '1.3.6.1.2.1.1.1.0', version: 'v2c', username: '', authProtocol: 'MD5', authPass: '', privProtocol: 'DES', privPass: '', securityLevel: 'AuthNoPriv' },
       snmpResult: [],
       mdnsService: '_services._dns-sd._udp',
       mdnsDuration: 3,
@@ -78,29 +88,53 @@ createApp({
         { label: 'Pacific/Auckland', value: 'NZST-12NZDT,M9.5.0/2,M4.1.0/3' }
       ],
       logLines: [],
+      logFilter: '',
       logsInterval: null,
       logsPaused: false,
       logsLimit: 200,
+      logLevelFilter: 'all',
+      logCategoryFilter: 'all',
+      pingResult: {},
+      nicErrorKeys: ['rx_errors','rx_dropped','rx_crc_errors','rx_length_errors','rx_over_errors','rx_frame_errors','rx_missed_errors','rx_no_buffer_count','rx_align_errors','rx_short_length_errors','rx_long_length_errors','tx_errors','tx_dropped','tx_missed_errors','tx_carrier_errors','tx_aborted_errors'],
+      nicErrorLabels: {
+        rx_errors: 'Erreurs RX', rx_dropped: 'RX dropped', rx_crc_errors: 'CRC', rx_length_errors: 'Longueur', rx_over_errors: 'Overrun',
+        rx_frame_errors: 'Frame', rx_missed_errors: 'Manqués', rx_no_buffer_count: 'Buffer plein', rx_align_errors: 'Alignement',
+        rx_short_length_errors: 'Trop court', rx_long_length_errors: 'Trop long',
+        tx_errors: 'Erreurs TX', tx_dropped: 'TX dropped', tx_missed_errors: 'Manqués TX', tx_carrier_errors: 'Porteuse', tx_aborted_errors: 'Abandonnés'
+      },
       passwordChange: { current_password: '', new_password: '', confirm_password: '' },
       lan: { ipaddr: '', netmask: '', gateway: '', proto: 'static', device: '' },
       wan: { ipaddr: '', netmask: '', gateway: '', proto: 'dhcp', device: '', macaddr: '' },
+      system: { hostname: '' },
       availableInterfaces: [],
       presets: [],
       selectedPreset: '',
       selectedPresetServices: [],
       switchVendor: 'generic',
       trunk: 'eth1',
+      ptpTimestamping: 'software',
       editing: { type: '', name: '' },
       hasPendingChanges: false,
       showWizard: false,
       wizardStep: 1,
       wizardPassword: '',
       wizardConfirmPassword: '',
-      wizardServices: {}
+      wizardPresets: [],
+      wizardPreset: ''
     };
   },
   computed: {
     currentPreset() { return this.presets.find(p => p.name === this.selectedPreset) || {}; },
+    presetsByCategory() {
+      const groups = {};
+      const labels = { base: 'Base', audio: 'Audio', video: 'Vidéo', light: 'Lumière', show: 'Spectacle complet' };
+      for (const p of this.presets) {
+        const cat = p.category || 'autre';
+        if (!groups[cat]) groups[cat] = { label: labels[cat] || cat, items: [] };
+        groups[cat].items.push(p);
+      }
+      return groups;
+    },
     services() { return this.filterType('stageneth', 'service'); },
     bindings() { return this.filterType('stageneth', 'binding'); },
     forwardings() { return this.filterType('stageneth', 'forwarding'); },
@@ -143,32 +177,102 @@ createApp({
     firewallRules() { return this.filterType('firewall', 'rule'); },
     servicesCount() { return Object.keys(this.services || {}).length; },
     leasesCount() { return (this.monitoring.dhcp_leases || []).length; },
+    activePresetCategory() {
+      const svcs = Object.keys(this.services || {});
+      if (svcs.some(s => ['dante','aes67','avb'].includes(s))) return 'audio';
+      if (svcs.some(s => ['ndihx','st2110'].includes(s))) return 'video';
+      if (svcs.some(s => ['artnet','sacn','proprietary'].includes(s))) return 'light';
+      return '';
+    },
+    presetTip() {
+      const cat = this.activePresetCategory;
+      const tips = {
+        audio: 'Audio : activer QoS voice, DSCP 46/34, priorité 6/7. Activer IGMP snooping sans filtrer PTP et Dante multicast.',
+        video: 'Vidéo : MTU 9000 obligatoire pour ST 2110. Activer IGMP querier, jumbo frames et trust DSCP. NDI : rester en 1500.',
+        light: 'Lumière : Art-Net utilise 2.x.x.x/8. sACN/MA-Net multicast : isoler les VLANs lumière. Désactiver EEE.'
+      };
+      return tips[cat] || '';
+    },
     vendorTip() {
       const tips = {
-        generic: 'Schéma standard 802.1Q. Choisissez un constructeur pour des conseils spécifiques.',
-        luminex: 'GigaCore gère PTP, IGMP et les profils AV. Laissez le multicast/PTP au switch.',
-        cisco: 'Activez IGMP snooping, IGMP querier, jumbo frames et trust DSCP sur le port trunk.',
-        netgear: 'Activez IGMP snooping, IGMP querier, jumbo frames et classofservice trust DSCP.'
+        generic: 'Schéma standard 802.1Q. Le routeur agit comme IGMP querier sur les bridges multicast.',
+        luminex: 'GigaCore gère IGMP et PTP. Le routeur active IGMP snooping mais laisse le rôle querier au switch.',
+        cisco: 'Activez IGMP snooping, IGMP querier, jumbo frames et trust DSCP sur le port trunk. Le routeur laisse le rôle querier au switch.',
+        netgear: 'Activez IGMP snooping, IGMP querier, jumbo frames et classofservice trust DSCP. Le routeur laisse le rôle querier au switch.'
       };
       return tips[this.switchVendor] || tips.generic;
     },
     visibleTabGroups() {
       if (!this.simpleMode) return this.tabGroups;
       return [
-        { label: 'Vue d\'ensemble', tabs: [
-          { key: 'simple', label: 'Tableau de bord', icon: 'fas fa-home' }
+        { label: 'Dashboard', tabs: [
+          { key: 'simple', label: 'Tableau de bord', icon: 'fas fa-tachometer-alt' }
         ]},
         { label: 'Supervision', tabs: [
-          { key: 'monitoring', label: 'Monitoring', icon: 'fas fa-chart-line' },
-          { key: 'logs', label: 'Logs', icon: 'fas fa-scroll' }
+          { key: 'monitoring', label: 'Supervision', icon: 'fas fa-chart-line' },
+          { key: 'logs', label: 'Journaux', icon: 'fas fa-scroll' }
         ]}
       ];
     },
     visibleTabs() { return this.visibleTabGroups.flatMap(g => g.tabs).map(t => t.key); },
+    ptpStateClass() {
+      const state = this.monitoring.ptp_status?.state || 'unknown';
+      if (state === 'SLAVE' || state === 'MASTER') return 'text-green-600 dark:text-green-400';
+      if (state === 'LISTENING' || state === 'UNCALIBRATED') return 'text-yellow-600 dark:text-yellow-400';
+      return 'text-red-600 dark:text-red-400';
+    },
+    mdbBridges() { return Object.keys(this.monitoring.bridge_mdb || {}); },
+    filteredLogLines() {
+      let lines = this.logLines || [];
+      const f = this.logFilter.toLowerCase();
+      if (f) lines = lines.filter(l => l.toLowerCase().includes(f));
+      if (this.logLevelFilter !== 'all') {
+        lines = lines.filter(l => this.logLineLevel(l) === this.logLevelFilter);
+      }
+      if (this.logCategoryFilter !== 'all') {
+        lines = lines.filter(l => this.logLineCategory(l) === this.logCategoryFilter);
+      }
+      return lines;
+    },
+    logCategories() {
+      const set = new Set((this.logLines || []).map(l => this.logLineCategory(l)).filter(Boolean));
+      return Array.from(set).sort();
+    },
+    mdnsByType() {
+      const map = {};
+      for (const r of (this.mdnsResults || [])) {
+        const t = r.type || 'unknown';
+        (map[t] ||= []).push(r);
+      }
+      return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+    },
+    totalNicErrors() {
+      const nicStats = this.monitoring.nic_stats || {};
+      return Object.entries(nicStats).reduce((total, [, stats]) => total + this.nicErrorTotal(stats), 0);
+    },
+    multicastByProtocol() {
+      const summary = {};
+      const groups = this.monitoring.igmp_groups || {};
+      for (const [br, list] of Object.entries(groups)) {
+        for (const g of list) {
+          const name = this.igmpGroupName(g.ip);
+          const key = name.replace(/^Multicast .*/, 'Autre multicast');
+          if (!summary[key]) summary[key] = 0;
+          summary[key]++;
+        }
+      }
+      return summary;
+    },
     healthAlerts() {
       const alerts = [];
+      const ptp = this.monitoring.ptp_status || {};
+      if (ptp.state && ptp.state !== 'SLAVE' && ptp.state !== 'MASTER') {
+        alerts.push({ type: 'warning', message: 'PTP non synchronisé : ' + ptp.state, icon: 'fas fa-clock' });
+      } else if (ptp.state === 'SLAVE' && Math.abs(ptp.offset_ns) > 1000) {
+        alerts.push({ type: 'warning', message: 'PTP offset élevé : ' + ptp.offset_ns.toFixed(1) + ' ns', icon: 'fas fa-clock' });
+      }
       if (this.hasPendingChanges) {
-        alerts.push({ type: 'warning', message: 'Modifications en attente : cliquez sur Save & Apply pour les appliquer.', icon: 'fas fa-exclamation-circle' });
+        alerts.push({ type: 'warning', message: 'Modifications en attente : cliquez sur Enregistrer & Appliquer pour les appliquer.', icon: 'fas fa-exclamation-circle' });
       }
       const ntpRunning = String(this.ntp?.running || '0') === '1';
       const ntpServer = String(this.ntp?.enable_server || '0') === '1';
@@ -180,6 +284,15 @@ createApp({
       else if (cpu > 60) alerts.push({ type: 'warning', message: `CPU élevé : ${cpu.toFixed(1)}%`, icon: 'fas fa-microchip' });
       const mem = Number(this.monitoring?.memory?.used_percent || 0);
       if (mem > 85) alerts.push({ type: 'warning', message: `Mémoire élevée : ${mem.toFixed(1)}%`, icon: 'fas fa-memory' });
+      const nicStats = this.monitoring.nic_stats || {};
+      for (const [iface, stats] of Object.entries(nicStats)) {
+        const details = this.nicErrorList(stats);
+        if (details.length > 0) {
+          const total = details.reduce((s, e) => s + Number(e.value), 0);
+          const detailStr = details.map(e => `${e.label}: ${e.value}`).join(', ');
+          alerts.push({ type: 'warning', message: `NIC ${iface} : ${total} (${detailStr})`, icon: 'fas fa-ethernet' });
+        }
+      }
       const svcStatus = this.monitoring?.services || {};
       for (const [svc, ok] of Object.entries(svcStatus)) {
         if (!ok) alerts.push({ type: 'warning', message: `Service ${svc} ne répond pas.`, icon: 'fas fa-network-wired' });
@@ -193,6 +306,7 @@ createApp({
       this.stopLogs();
       this.stopNtpTime();
       if (tab === 'monitoring') { this.fetchMonitoring(); }
+      else if (tab === 'network') { this.loadNetworkInterfaces(); }
       else if (tab === 'logs') { this.startLogs(); }
       else if (tab === 'ntp') { this.loadNtp(); this.fetchNtpTime(); this.startNtpTime(); }
       else { this.refresh(); }
@@ -220,9 +334,12 @@ createApp({
       await this.refresh();
       this.switchVendor = (this.uci.stageneth?.values?.globals?.switch_vendor) || 'generic';
       this.trunk = (this.uci.stageneth?.values?.globals?.trunk) || 'eth1';
+      this.ptpTimestamping = (this.uci.stageneth?.values?.globals?.ptp_timestamping) || 'software';
       this.simpleMode = (localStorage.getItem('stageneth_simple') !== null ? localStorage.getItem('stageneth_simple') === 'true' : true);
       if (!this.visibleTabs.includes(this.currentTab)) this.currentTab = 'simple';
       this.startMonitoring();
+      if (this.currentTab === 'logs') this.startLogs();
+      if (this.currentTab === 'ntp') { this.startNtpTime(); this.fetchNtpTime(); }
       await this.loadPresets();
       await this.loadLan();
       await this.loadWan();
@@ -269,7 +386,8 @@ createApp({
         const res = await api('/api/firstboot', 'GET');
         if (res.data && !res.data.firstboot_done) {
           this.showWizard = true;
-          this.wizardServices = Object.fromEntries((res.data.services || []).map(s => [s, true]));
+          this.wizardPresets = res.data.presets || [];
+          this.wizardPreset = this.wizardPresets[0]?.name || '';
         }
       } catch (e) {}
     },
@@ -281,10 +399,9 @@ createApp({
     },
     async submitWizard() {
       this.error = '';
-      const services = Object.keys(this.wizardServices).filter(k => this.wizardServices[k]);
       try {
         this.isLoading = true;
-        const res = await api('/api/wizard', 'POST', { password: this.wizardPassword, services });
+        const res = await api('/api/wizard', 'POST', { password: this.wizardPassword, preset: this.wizardPreset });
         this.token = res.data.token;
         localStorage.setItem('stageneth_token_v2', this.token);
         this.showWizard = false;
@@ -312,6 +429,23 @@ createApp({
         this.toast('Reset wizard failed: ' + e.message, 'error');
       }
     },
+    async skipWizard() {
+      if (!confirm('Ignorer le wizard ? Le mot de passe root restera inchangé et aucun preset ne sera appliqué.')) return;
+      try {
+        this.isLoading = true;
+        const res = await api('/api/wizard-skip', 'POST', {});
+        this.token = res.data.token;
+        localStorage.setItem('stageneth_token_v2', this.token);
+        this.showWizard = false;
+        await this.refresh();
+        this.startMonitoring();
+        this.toast('Wizard ignoré', 'info');
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.isLoading = false;
+      }
+    },
     async ubus(path, method, payload = {}) {
       return api('/api/ubus/call', 'POST', { path, method, payload });
     },
@@ -321,16 +455,88 @@ createApp({
     async uciCommit(config) {
       return api('/api/uci/commit', 'POST', { config });
     },
+    async backupConfig() {
+      try {
+        const res = await api('/api/backup', 'GET');
+        const text = res.data?.data || '';
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'stageneth-config.txt';
+        a.click();
+        URL.revokeObjectURL(url);
+        this.toast('Sauvegarde téléchargée', 'success');
+      } catch (e) { this.toast('Sauvegarde échouée : ' + e.message, 'error'); }
+    },
+    async restoreConfig() {
+      try {
+        const text = this.$refs.restoreText?.value || '';
+        if (!text) return this.toast('Collez une sauvegarde avant', 'warning');
+        const res = await api('/api/restore', 'POST', { data: text });
+        this.toast(res.message, 'success');
+        await this.refresh();
+      } catch (e) { this.toast('Restauration échouée : ' + e.message, 'error'); }
+    },
+    async pingService(name) {
+      const ip = (this.serviceNetworks[name] || {}).ip;
+      if (!ip) return;
+      this.$set(this.pingResult, name, { loading: true });
+      try {
+        const res = await api('/api/ping?ip=' + encodeURIComponent(ip), 'GET');
+        this.$set(this.pingResult, name, { ok: res.data?.ok, output: res.data?.output, loading: false });
+      } catch (e) {
+        this.$set(this.pingResult, name, { ok: false, output: e.message, loading: false });
+      }
+    },
+    igmpGroupName(ip) {
+      const names = {
+        '224.0.0.1': 'All hosts',
+        '224.0.0.2': 'All routers',
+        '224.0.0.107': 'PTP peer delay',
+        '224.0.1.129': 'PTP announce',
+        '224.0.0.251': 'mDNS',
+      };
+      return names[ip] || 'Multicast ' + ip;
+    },
+    nicErrorClass(stats) {
+      const total = (this.nicErrorKeys || []).reduce((sum, k) => sum + Number((stats || {})[k] || 0), 0);
+      if (total > 100) return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100';
+      if (total > 0) return 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100';
+      return 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100';
+    },
+    nicErrorTotal(stats) {
+      return (this.nicErrorKeys || []).reduce((sum, k) => sum + Number((stats || {})[k] || 0), 0);
+    },
+    nicErrorList(stats) {
+      return (this.nicErrorKeys || []).filter(k => (stats || {})[k] > 0).map(k => ({ key: k, label: this.nicErrorLabels[k] || k, value: stats[k] }));
+    },
     async refresh() {
       this.isLoading = true;
       try {
-        for (const config of ['stageneth', 'network', 'dhcp', 'firewall']) {
+        for (const config of ['stageneth', 'network', 'dhcp', 'firewall', 'system']) {
           const res = await api('/api/uci/get', 'POST', { config });
           this.uci[config] = res.data || {};
         }
-        this.toast('Refreshed', 'success');
+        const values = this.uci.system?.values || {};
+        const sys = values['@system[0]'] || {};
+        this.system.hostname = sys.hostname || 'stageneth';
+        this.toast('Données actualisées', 'success');
       } catch (e) {
-        this.toast('Refresh failed: ' + e.message, 'error');
+        this.toast("Échec de l'actualisation : " + e.message, 'error');
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    async saveSystem() {
+      this.isLoading = true;
+      try {
+        await this.uciSet('system', '@system[0]', 'system', { hostname: this.system.hostname });
+        await this.uciCommit('system');
+        this.toast('Paramètres système enregistrés', 'success');
+        await this.refresh();
+      } catch (e) {
+        this.toast("Échec de l'enregistrement : " + e.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -365,7 +571,7 @@ createApp({
     },
     startEdit(type, name, data) {
       this.editing = { type, name };
-      if (type === 'service') Object.assign(this.newService, { name, vlan_id: data.vlan_id || '', dscp: data.dscp || '', priority: data.priority || '', mtu: data.mtu || '', ptp: data.ptp || '0', multicast: data.multicast || '0', untagged: data.untagged || '0' });
+      if (type === 'service') Object.assign(this.newService, { name, vlan_id: data.vlan_id || '', dscp: data.dscp || '', priority: data.priority || '', mtu: data.mtu || '', ipaddr: data.ipaddr || '', netmask: data.netmask || '', ptp: data.ptp || '0', multicast: data.multicast || '0', untagged: data.untagged || '0' });
       else if (type === 'binding') Object.assign(this.newBinding, { name, interface: data.interface || '', service: data.service || '' });
       else if (type === 'forwarding') Object.assign(this.newForwarding, { name, src: data.src || '', dest: data.dest || '', enabled: data.enabled || '1' });
       else if (type === 'interface') Object.assign(this.newInterface, { name, proto: data.proto || 'static', ipaddr: data.ipaddr || '', netmask: data.netmask || '', device: data.device || '' });
@@ -381,8 +587,8 @@ createApp({
       const s = this.newService;
       const section = this.editing.type === 'service' ? this.editing.name : s.name;
       await this.addUci('stageneth', section, 'service', {
-        vlan_id: s.vlan_id, dscp: s.dscp, priority: s.priority, mtu: s.mtu, ptp: s.ptp, multicast: s.multicast, untagged: s.untagged
-      }, { newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', mtu: '', ptp: '0', multicast: '0', untagged: '0' }, editing: { type: '', name: '' } });
+        vlan_id: s.vlan_id, dscp: s.dscp, priority: s.priority, mtu: s.mtu, ipaddr: s.ipaddr, netmask: s.netmask, ptp: s.ptp, multicast: s.multicast, untagged: s.untagged
+      }, { newService: { name: '', vlan_id: '20', dscp: '0', priority: '0', mtu: '', ipaddr: '', netmask: '', ptp: '0', multicast: '0', untagged: '0' }, editing: { type: '', name: '' } });
     },
     async addBinding() {
       const b = this.newBinding;
@@ -496,7 +702,7 @@ createApp({
         this.toast(res.message + ' ' + (res.data?.log || ''), 'success');
         await this.refresh();
       } catch (e) {
-        this.toast('Preset apply failed: ' + e.message, 'error');
+        this.toast("Échec de l'application du preset : " + e.message, 'error');
         this.hasPendingChanges = true;
       } finally {
         this.isLoading = false;
@@ -520,7 +726,7 @@ createApp({
         const res = await api('/api/stageneth/apply', 'POST', {});
         this.toast(res.message + ' ' + (res.data?.log || ''), 'success');
       } catch (e) {
-        this.toast('Apply failed: ' + e.message, 'error');
+        this.toast("Échec de l'application : " + e.message, 'error');
         this.hasPendingChanges = true;
       } finally {
         this.isLoading = false;
@@ -529,12 +735,12 @@ createApp({
     async saveGlobals() {
       this.isLoading = true;
       try {
-        await this.uciSet('stageneth', 'globals', 'stageneth', { switch_vendor: this.switchVendor, trunk: this.trunk });
+        await this.uciSet('stageneth', 'globals', 'stageneth', { switch_vendor: this.switchVendor, trunk: this.trunk, ptp_timestamping: this.ptpTimestamping });
         await this.uciCommit('stageneth');
         this.hasPendingChanges = true;
-        this.toast('Globals saved', 'success');
+        this.toast('Paramètres globaux enregistrés', 'success');
       } catch (e) {
-        this.toast('Save globals failed: ' + e.message, 'error');
+        this.toast("Échec de l'enregistrement : " + e.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -753,6 +959,44 @@ createApp({
       } else {
         document.documentElement.classList.remove('dark');
       }
+    },
+    logLineLevel(line) {
+      const m = line.match(/\b(?:emerg|alert|crit|err|warn|notice|info|debug)\b/);
+      if (m) {
+        const p = m[0];
+        if (['emerg','alert','crit','err'].includes(p)) return 'err';
+        if (['warn','warning'].includes(p)) return 'warn';
+        if (p === 'notice') return 'notice';
+        if (p === 'debug') return 'debug';
+        return 'info';
+      }
+      const lower = line.toLowerCase();
+      if (lower.includes('error') || lower.includes('failed') || lower.includes('failure')) return 'err';
+      if (lower.includes('warn')) return 'warn';
+      return 'info';
+    },
+    logLineCategory(line) {
+      const logread = line.match(/^\w{3}\s+\w{3}\s+\d+\s+\d+:\d+:\d+\s+\d+\s+([\w.-]+)\.(?:\w+)\s+([\w_.-]+)(?:\[\d+\])?:/);
+      if (logread) return logread[2].toLowerCase();
+      const rsyslog = line.match(/^\w{3}\s+\d+\s+\d+:\d+:\d+\s+\S+\s+([\w_.-]+)(?:\[\d+\])?:/);
+      if (rsyslog) return rsyslog[1].toLowerCase();
+      const m = line.match(/\b(?:kern|user|mail|daemon|auth|syslog|lpr|news|uucp|cron|authpriv|ftp|ntp|logaudit|local[0-7])\.\w+\b/);
+      if (m) return m[0].split('.')[0];
+      const proc = line.match(/\s([a-zA-Z0-9_.-]+)\[\d+\]:/);
+      if (proc) return proc[1].split('.')[0].toLowerCase();
+      const nginx = line.match(/^\d{4}\/\d{2}\/\d{2}\s+\d+:\d+:\d+\s+\[(\w+)\]/);
+      if (nginx) return 'nginx';
+      const tag = line.match(/\s([a-zA-Z0-9_.-]+):\s/);
+      if (tag) return tag[1].toLowerCase();
+      return 'other';
+    },
+    logLineClass(line) {
+      const level = this.logLineLevel(line);
+      if (level === 'err') return 'text-red-500';
+      if (level === 'warn') return 'text-yellow-500';
+      if (level === 'notice') return 'text-green-500';
+      if (level === 'debug') return 'text-slate-500';
+      return 'text-slate-300';
     },
     async fetchLogs() {
       if (this.logsPaused) return;

@@ -1,18 +1,21 @@
           <div v-if="currentTab==='services'">
-            <h2 class="text-lg font-semibold mb-3">Services</h2>
+            <h2 class="text-2xl font-bold mb-2">Services AV</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Configuration des services audio/vidéo, leurs VLAN, DSCP, MTU, et les règles de forwarding inter-services.</p>
 
             <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
-              <h3 class="text-md font-semibold mb-2">VLAN presets</h3>
+              <h3 class="text-md font-semibold mb-2">Préréglages VLAN</h3>
               <form @submit.prevent="applyPreset" class="flex gap-2">
                 <select v-model="selectedPreset" @change="onPresetChange" aria-label="Préréglage VLAN" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-                  <option value="">Select a preset...</option>
-                  <option v-for="p in presets" :key="p.name" :value="p.name">{{ p.label }}</option>
+                  <option value="">Choisir un preset...</option>
+                  <optgroup v-for="(g, cat) in presetsByCategory" :key="cat" :label="g.label">
+                    <option v-for="p in g.items" :key="p.name" :value="p.name">{{ p.label }}</option>
+                  </optgroup>
                 </select>
-                <button type="submit" :disabled="!selectedPreset" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Apply</button>
+                <button type="submit" :disabled="!selectedPreset" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Appliquer</button>
               </form>
               <p v-if="selectedPreset" class="text-sm text-slate-500 dark:text-slate-400 mt-2">{{ presets.find(p => p.name === selectedPreset)?.description || '' }}</p>
               <div v-if="selectedPreset" class="mt-2">
-                <p class="text-sm font-semibold mb-1">Services to apply:</p>
+                <p class="text-sm font-semibold mb-1">Services à activer :</p>
                 <div class="flex flex-wrap gap-3">
                   <label v-for="svc in (currentPreset.services || [])" :key="svc" class="inline-flex items-center gap-1 text-sm">
                     <input type="checkbox" :value="svc" v-model="selectedPresetServices" class="accent-blue-600"> {{ svc }}
@@ -21,7 +24,7 @@
               </div>
             </div>
             <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
-              <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">VLAN</th><th class="p-2">DSCP</th><th class="p-2">Priority</th><th class="p-2">MTU</th><th class="p-2">PTP</th><th class="p-2">Multicast</th><th class="p-2">Untagged</th><th class="p-2"></th></tr></thead>
+              <thead class="border-b"><tr><th class="p-2" title="Nom du service AV">Nom</th><th class="p-2" title="VLAN ID (1-4094)">VLAN</th><th class="p-2" title="Differentiated Services Code Point (QoS)">DSCP</th><th class="p-2" title="Priorité 802.1P / VLAN (0-7)">Priorité</th><th class="p-2" title="Maximum Transmission Unit en octets">MTU</th><th class="p-2" title="Adresse IP du service">IP</th><th class="p-2" title="Masque réseau">Masque</th><th class="p-2" title="Precision Time Protocol activé">PTP</th><th class="p-2" title="Multicast activé sur ce VLAN">Multicast</th><th class="p-2" title="Port non tagué (accès) ou tagué (trunk)">Non tagué</th><th class="p-2"></th></tr></thead>
               <tbody>
                 <tr v-for="(s, name) in services" :key="name" class="border-b last:border-0">
                   <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(name)"></span>{{ name }}</td>
@@ -29,62 +32,64 @@
                   <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.dscp" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.dscp }}</span></td>
                   <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.priority" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.priority }}</span></td>
                   <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.mtu" class="p-1 border rounded w-20 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else>{{ s.mtu || 'auto' }}</span></td>
-                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.ptp" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.ptp ? 'yes' : 'no' }}</span></td>
-                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.multicast" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.multicast ? 'yes' : 'no' }}</span></td>
-                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.untagged" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">yes</option><option value="0">no</option></select><span v-else>{{ s.untagged === '1' ? 'yes' : 'no' }}</span></td>
-                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'service'" @click="addService" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('service', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.ipaddr" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else class="font-mono text-xs">{{ s.ipaddr || ('10.' + s.vlan_id + '.0.1') }}</span></td>
+                  <td class="p-2"><input v-if="editing.name === name && editing.type === 'service'" v-model="newService.netmask" class="p-1 border rounded w-24 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><span v-else class="font-mono text-xs">{{ s.netmask || '255.255.255.0' }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.ptp" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">Oui</option><option value="0">Non</option></select><span v-else>{{ s.ptp ? 'Oui' : 'Non' }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.multicast" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">Oui</option><option value="0">Non</option></select><span v-else>{{ s.multicast ? 'Oui' : 'Non' }}</span></td>
+                  <td class="p-2"><select v-if="editing.name === name && editing.type === 'service'" v-model="newService.untagged" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">Non tagué</option><option value="0">Tagué</option></select><span v-else>{{ s.untagged === '1' ? 'Non tagué' : 'Tagué' }}</span></td>
+                  <td class="p-2"><button v-if="editing.name === name && editing.type === 'service'" @click="addService" class="text-green-600 dark:text-green-400 hover:underline mr-2">enregistrer</button><button v-else @click="startEdit('service', name, s)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">modifier</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">supprimer</button></td>
                 </tr>
               </tbody>
             </table>
-            <form @submit.prevent="addService" class="grid grid-cols-9 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
-              <input v-model="newService.name" placeholder="name" required aria-label="Nom du service" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <input v-model="newService.vlan_id" placeholder="vlan" aria-label="VLAN" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <input v-model="newService.dscp" placeholder="dscp" aria-label="DSCP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <input v-model="newService.priority" placeholder="prio" aria-label="Priorité" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <input v-model="newService.mtu" placeholder="mtu" aria-label="MTU" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <select v-model="newService.ptp" aria-label="PTP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">ptp</option><option value="0">no ptp</option></select>
-              <select v-model="newService.multicast" aria-label="Multicast" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">multicast</option><option value="0">no</option></select>
-              <select v-model="newService.untagged" aria-label="Untagged" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">untagged</option><option value="0">tagged</option></select>
-              <button type="submit" :disabled="!newService.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+            <form @submit.prevent="addService" class="grid grid-cols-11 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-6">
+              <input v-model="newService.name" placeholder="nom" required aria-label="Nom du service" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.vlan_id" placeholder="VLAN" aria-label="VLAN" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.dscp" placeholder="DSCP" aria-label="DSCP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.priority" placeholder="priorité" aria-label="Priorité" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.mtu" placeholder="MTU" aria-label="MTU" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.ipaddr" placeholder="IP" aria-label="IP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newService.netmask" placeholder="Masque" aria-label="Masque" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <select v-model="newService.ptp" aria-label="PTP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">PTP</option><option value="0">Sans PTP</option></select>
+              <select v-model="newService.multicast" aria-label="Multicast" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">Multicast</option><option value="0">Non</option></select>
+              <select v-model="newService.untagged" aria-label="Non tagué" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">Non tagué</option><option value="0">Tagué</option></select>
+              <button type="submit" :disabled="!newService.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Ajouter</button>
             </form>
 
-            <h2 class="text-lg font-semibold mb-3">Bindings</h2>
+            <h2 class="text-lg font-semibold mb-3">Associations</h2>
             <ul class="bg-white dark:bg-slate-800 rounded shadow p-4 text-sm mb-4 space-y-1">
               <li v-for="(b, name) in bindings" :key="name" class="flex justify-between border-b py-1">
                 <span v-if="!(editing.name === name && editing.type === 'binding')">{{ name }}: <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(b.interface)"></span>{{ b.interface }} &rarr; <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(b.service)"></span>{{ b.service }}</span>
-                <span v-else class="flex gap-2"><input v-model="newBinding.interface" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><select v-model="newBinding.service" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option v-for="(_, n) in services" :value="n">{{ n }}</option></select></span>
-                <span><button v-if="editing.name === name && editing.type === 'binding'" @click="addBinding" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('binding', name, b)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></span>
+                <span v-else class="flex gap-2"><input v-model="newBinding.interface" placeholder="ex: eth1" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" /><select v-model="newBinding.service" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option v-for="(_, n) in services" :value="n">{{ n }}</option></select></span>
+                <span><button v-if="editing.name === name && editing.type === 'binding'" @click="addBinding" class="text-green-600 dark:text-green-400 hover:underline mr-2">enregistrer</button><button v-else @click="startEdit('binding', name, b)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">modifier</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">supprimer</button></span>
               </li>
             </ul>
             <form @submit.prevent="addBinding" class="flex gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
-              <input v-model="newBinding.name" placeholder="binding name" required aria-label="Nom du binding" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <select v-model="newBinding.interface" aria-label="Interface physique" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-                <option v-for="iface in physicalInterfaces" :value="iface">{{ iface }}</option>
-              </select>
+              <input v-model="newBinding.name" placeholder="nom de l'association" required aria-label="Nom du binding" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newBinding.interface" placeholder="ex: eth1" aria-label="Interface physique" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
               <select v-model="newBinding.service" aria-label="Service" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
                 <option v-for="(_, n) in services" :value="n">{{ n }}</option>
               </select>
-              <button type="submit" :disabled="!newBinding.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+              <button type="submit" :disabled="!newBinding.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Ajouter</button>
             </form>
 
             <h2 class="text-lg font-semibold mb-3 mt-6">Forwardings</h2>
             <ul class="bg-white dark:bg-slate-800 rounded shadow p-4 text-sm mb-4 space-y-1">
               <li v-for="(f, name) in forwardings" :key="name" class="flex justify-between border-b py-1">
                 <span v-if="!(editing.name === name && editing.type === 'forwarding')">{{ name }}: <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(f.src)"></span>{{ f.src }} &rarr; <span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" :class="serviceColor(f.dest)"></span>{{ f.dest }} ({{ f.enabled==='0'?'disabled':'enabled' }})</span>
-                <span v-else class="flex gap-2"><select v-model="newForwarding.src" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="">src</option><option v-for="(_, n) in services" :value="n">{{ n }}</option></select><select v-model="newForwarding.dest" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="">dest</option><option v-for="(_, n) in services" :value="n">{{ n }}</option></select><select v-model="newForwarding.enabled" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">enabled</option><option value="0">disabled</option></select></span>
-                <span><button v-if="editing.name === name && editing.type === 'forwarding'" @click="addForwarding" class="text-green-600 dark:text-green-400 hover:underline mr-2">save</button><button v-else @click="startEdit('forwarding', name, f)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">edit</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">delete</button></span>
+                <span v-else class="flex gap-2"><select v-model="newForwarding.src" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="">source</option><option v-for="(_, n) in services" :value="n">{{ n }}</option></select><select v-model="newForwarding.dest" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="">destination</option><option v-for="(_, n) in services" :value="n">{{ n }}</option></select><select v-model="newForwarding.enabled" class="p-1 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="1">enabled</option><option value="0">disabled</option></select></span>
+                <span><button v-if="editing.name === name && editing.type === 'forwarding'" @click="addForwarding" class="text-green-600 dark:text-green-400 hover:underline mr-2">enregistrer</button><button v-else @click="startEdit('forwarding', name, f)" class="text-blue-600 dark:text-blue-400 hover:underline mr-2">modifier</button><button @click="removeUci('stageneth', name)" class="text-red-600 dark:text-red-400 hover:underline">supprimer</button></span>
               </li>
             </ul>
             <form @submit.prevent="addForwarding" class="flex gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow">
-              <input v-model="newForwarding.name" placeholder="name" required aria-label="Nom du forwarding" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+              <input v-model="newForwarding.name" placeholder="nom" required aria-label="Nom du forwarding" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
               <select v-model="newForwarding.src" aria-label="Zone source" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-                <option value="">src zone</option>
+                <option value="">source</option>
                 <option v-for="(_, n) in services" :value="n">{{ n }}</option>
               </select>
               <select v-model="newForwarding.dest" aria-label="Zone destination" class="p-2 border rounded flex-1 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-                <option value="">dest zone</option>
+                <option value="">destination</option>
                 <option v-for="(_, n) in services" :value="n">{{ n }}</option>
               </select>
-              <button type="submit" :disabled="!newForwarding.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Add</button>
+              <button type="submit" :disabled="!newForwarding.name" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Ajouter</button>
             </form>
           </div>

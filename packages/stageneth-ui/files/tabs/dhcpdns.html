@@ -1,5 +1,7 @@
           <div v-if="currentTab==='dhcpdns'">
-            <h2 class="text-lg font-semibold mb-3">DHCP pools</h2>
+            <h2 class="text-2xl font-bold mb-2">DHCP & DNS</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Pools DHCP, baux statiques et configuration DNS (dnsmasq).</p>
+            <h2 class="text-lg font-semibold mb-3">Pools DHCP</h2>
             <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
               <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Interface</th><th class="p-2">Start</th><th class="p-2">Limit</th><th class="p-2">Leasetime</th><th class="p-2"></th></tr></thead>
               <tbody>
@@ -45,7 +47,7 @@
           </div>
 
           <!-- DNS dans le même onglet -->
-          <div v-if="currentTab==='dhcpdns'">
+          <div v-if="currentTab==='dhcpdns'" class="mt-6">
             <h2 class="text-lg font-semibold mb-3">DNS / Dnsmasq</h2>
             <table class="w-full text-left text-sm mb-4 bg-white dark:bg-slate-800 rounded shadow">
               <thead class="border-b"><tr><th class="p-2">Name</th><th class="p-2">Domain</th><th class="p-2">Local</th><th class="p-2">DNS servers</th><th class="p-2"></th></tr></thead>

@@ -1,0 +1,17 @@
+          <div v-if="currentTab==='backup'">
+            <h2 class="text-2xl font-bold mb-4">Sauvegarde / Restauration</h2>
+            <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">Sauvegarde complète des packages UCI : stageneth, stageneth-api, network, dhcp, firewall, system.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <h3 class="text-lg font-semibold mb-2">Sauvegarder</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Télécharge la configuration complète du routeur.</p>
+                <button @click="backupConfig" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Télécharger la config</button>
+              </div>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <h3 class="text-lg font-semibold mb-2">Restaurer</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Collez le contenu d'une sauvegarde complète puis cliquez sur Appliquer. Attention : la restauration écrase les packages existants.</p>
+                <textarea ref="restoreText" rows="10" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 font-mono text-xs mb-2" placeholder="# StageNeth configuration backup..."></textarea>
+                <button @click="restoreConfig" class="bg-orange-600 text-white p-2 rounded hover:bg-orange-700">Appliquer la config</button>
+              </div>
+            </div>
+          </div>

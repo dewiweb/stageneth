@@ -1,0 +1,32 @@
+#!/bin/sh /etc/rc.common
+USE_PROCD=1
+START=90
+STOP=10
+
+start_service() {
+    local ptp_services
+    ptp_services=$(uci show stageneth 2>/dev/null | sed -n "s/^stageneth\.\([^.]*\)\.ptp='1'$/\1/p")
+    if [ -z "$ptp_services" ]; then
+        logger -t stageneth-ptp "Aucun service PTP activé"
+        return 0
+    fi
+
+    local ts
+    ts=$(uci get stageneth.globals.ptp_timestamping 2>/dev/null)
+    [ "$ts" = "hardware" ] || ts="software"
+
+    procd_open_instance
+    procd_set_param command /usr/sbin/ptp4l -f /etc/stageneth/ptp4l-stage.conf -m
+    [ "$ts" = "software" ] && procd_append_param command -S
+    for svc in $ptp_services; do
+        local vlan
+        vlan=$(uci get stageneth."$svc".vlan_id 2>/dev/null)
+        [ -n "$vlan" ] && procd_append_param command -i "eth0.$vlan"
+    done
+    procd_set_param respawn
+    procd_close_instance
+}
+
+stop_service() {
+    killall ptp4l 2>/dev/null
+}

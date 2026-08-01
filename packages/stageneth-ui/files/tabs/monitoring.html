@@ -1,5 +1,5 @@
           <div v-if="currentTab==='monitoring'">
-            <h2 class="text-lg font-semibold mb-3">Monitoring</h2>
+            <h2 class="text-lg font-semibold mb-3">Supervision</h2>
             <div v-if="healthAlerts.length" class="mb-4 space-y-2">
               <div v-for="alert in healthAlerts" :key="alert.message" class="p-3 rounded border-l-4" :class="alert.type==='error' ? 'bg-red-50 dark:bg-red-900 border-red-500 text-red-800 dark:text-red-100' : alert.type==='warning' ? 'bg-yellow-50 dark:bg-yellow-900 border-yellow-500 text-yellow-800 dark:text-yellow-100' : 'bg-blue-50 dark:bg-blue-900 border-blue-500 text-blue-800 dark:text-blue-100'">
                 <p class="text-sm font-semibold"><i :class="alert.icon" class="mr-2"></i>{{ alert.message }}</p>
@@ -14,15 +14,15 @@
                 </svg>
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
-                <p class="text-sm text-slate-500 dark:text-slate-400">Load</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Charge</p>
                 <p class="text-2xl font-semibold">{{ monitoring.load ?? '-' }}</p>
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
-                <p class="text-sm text-slate-500 dark:text-slate-400">Uptime</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Disponibilité</p>
                 <p class="text-2xl font-semibold">{{ formatUptime(monitoring.uptime_seconds) }}</p>
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
-                <p class="text-sm text-slate-500 dark:text-slate-400">Memory</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Mémoire</p>
                 <p class="text-2xl font-semibold">{{ formatPercent(monitoring.memory?.used_percent) }}</p>
                 <svg viewBox="0 0 100 30" class="w-full h-8 mt-2 text-purple-500" preserveAspectRatio="none">
                   <polyline :points="sparklineAuto(monitoringHistory.memory)" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" />
@@ -30,7 +30,7 @@
                 <p class="text-xs text-slate-400 dark:text-slate-500">{{ formatBytes((monitoring.memory?.used_kb || 0)*1024) }} / {{ formatBytes((monitoring.memory?.total_kb || 0)*1024) }}</p>
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
-                <p class="text-sm text-slate-500 dark:text-slate-400">DHCP leases</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Baux DHCP</p>
                 <p class="text-2xl font-semibold">{{ (monitoring.dhcp_leases || []).length }}</p>
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
@@ -39,13 +39,13 @@
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
                 <p class="text-sm text-slate-500 dark:text-slate-400">NTP</p>
-                <p class="text-2xl font-semibold">{{ ntp.running ? 'Running' : 'Stopped' }}</p>
-                <p class="text-xs text-slate-400 dark:text-slate-500">Client: {{ ntp.enabled ? 'On' : 'Off' }} | Server: {{ ntp.enable_server ? 'On' : 'Off' }}</p>
+                <p class="text-2xl font-semibold">{{ ntp.running ? 'En cours' : 'Arrêté' }}</p>
+                <p class="text-xs text-slate-400 dark:text-slate-500">Client: {{ ntp.enabled ? 'Actif' : 'Inactif' }} | Server: {{ ntp.enable_server ? 'Actif' : 'Inactif' }}</p>
                 <p class="text-xs text-slate-400 dark:text-slate-500 truncate" :title="(ntp.servers || []).join(', ')">{{ (ntp.servers || []).join(', ') }}</p>
               </div>
             </div>
 
-            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
               <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Services<i class="fas fa-chevron-down text-slate-400"></i></summary>
               <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
                 <div class="grid grid-cols-3 md:grid-cols-5 gap-2 mb-2">
@@ -57,8 +57,53 @@
               </div>
             </details>
 
-            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
-              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Traffic by service<i class="fas fa-chevron-down text-slate-400"></i></summary>
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">PTP<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700 text-sm">
+                <p class="mb-2"><strong>État port :</strong> <span class="font-mono" :class="ptpStateClass">{{ monitoring.ptp_status?.state || 'unknown' }}</span></p>
+                <p class="mb-2"><strong>Offset from master :</strong> <span class="font-mono">{{ monitoring.ptp_status?.offset_ns != null ? monitoring.ptp_status.offset_ns.toFixed(1) + ' ns' : '-' }}</span></p>
+                <p><strong>Mean path delay :</strong> <span class="font-mono">{{ monitoring.ptp_status?.delay_ns != null ? monitoring.ptp_status.delay_ns.toFixed(1) + ' ns' : '-' }}</span></p>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Erreurs NIC<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700 text-sm">
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <div v-for="(stats, iface) in monitoring.nic_stats" :key="iface" class="p-2 rounded" :class="nicErrorClass(stats)">
+                    <p class="font-semibold flex justify-between"><span>{{ iface }}</span><span v-if="nicErrorTotal(stats) > 0" class="text-xs font-bold">{{ nicErrorTotal(stats) }}</span></p>
+                    <p v-for="e in nicErrorList(stats)" :key="e.key" class="text-xs font-mono">{{ e.label }}: {{ e.value }}</p>
+                    <p v-if="!nicErrorList(stats).length" class="text-xs text-green-700 dark:text-green-300">Aucune erreur</p>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Groupes multicast par port (MDB)<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700 text-sm">
+                <p v-if="!mdbBridges.length" class="text-slate-500">Aucune entrée MDB (nécessite ip-bridge).</p>
+                <div v-for="br in mdbBridges" :key="br" class="mb-2">
+                  <p class="font-semibold"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(br)"></span>{{ br }}</p>
+                  <ul class="text-xs font-mono pl-4">
+                    <li v-for="(e, i) in monitoring.bridge_mdb[br]" :key="i">{{ e.port }} · {{ e.group }} <span v-if="e.vid">(vid {{ e.vid }})</span></li>
+                  </ul>
+                </div>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Multicast par protocole<i class="fas fa-chevron-down text-slate-400"></i></summary>
+              <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700 text-sm">
+                <p v-if="!Object.keys(multicastByProtocol).length" class="text-slate-500">Aucun groupe multicast détecté.</p>
+                <div v-else class="flex flex-wrap gap-2">
+                  <span v-for="(count, proto) in multicastByProtocol" :key="proto" class="px-2 py-1 rounded bg-slate-100 dark:bg-slate-700 text-xs font-medium">{{ proto }}: {{ count }}</span>
+                </div>
+              </div>
+            </details>
+
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Trafic par service<i class="fas fa-chevron-down text-slate-400"></i></summary>
               <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
                 <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
                   <thead class="border-b"><tr><th class="p-2">Service</th><th class="p-2">IP</th><th class="p-2">RX</th><th class="p-2">TX</th><th class="p-2">RX pkts</th><th class="p-2">TX pkts</th></tr></thead>
@@ -76,17 +121,18 @@
               </div>
             </details>
 
-            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
               <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">IGMP<i class="fas fa-chevron-down text-slate-400"></i></summary>
               <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700 text-sm">
                 <p class="mb-2"><strong>Snooping:</strong> <span v-for="(on, br) in monitoring.igmp_snooping" :key="br" class="mr-2">{{ br }}: {{ on ? 'on' : 'off' }}</span></p>
                 <table class="w-full text-left">
-                  <thead class="border-b"><tr><th class="p-2">Bridge</th><th class="p-2">Group</th><th class="p-2">Users</th><th class="p-2">Reporter</th></tr></thead>
+                  <thead class="border-b"><tr><th class="p-2">Bridge</th><th class="p-2">Groupe</th><th class="p-2">Adresse</th><th class="p-2">Abonnés</th><th class="p-2">Reporter</th></tr></thead>
                   <tbody>
                     <template v-for="(groups, br) in monitoring.igmp_groups" :key="br">
                       <tr v-for="(g, idx) in groups" :key="br+'-'+idx" class="border-b last:border-0">
                         <td class="p-2 font-medium"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(br)"></span>{{ br }}</td>
-                        <td class="p-2">{{ g.ip }} <span class="text-xs text-slate-500">({{ g.group_hex }})</span></td>
+                        <td class="p-2 text-xs">{{ igmpGroupName(g.ip) }}</td>
+                        <td class="p-2 font-mono text-xs">{{ g.ip }}</td>
                         <td class="p-2">{{ g.users }}</td>
                         <td class="p-2">{{ g.reporter }}</td>
                       </tr>
@@ -96,7 +142,7 @@
               </div>
             </details>
 
-            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
               <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Interfaces<i class="fas fa-chevron-down text-slate-400"></i></summary>
               <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
                 <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
@@ -114,17 +160,17 @@
               </div>
             </details>
 
-            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow" open>
-              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">DHCP leases<i class="fas fa-chevron-down text-slate-400"></i></summary>
+            <details class="mb-4 bg-white dark:bg-slate-800 rounded shadow">
+              <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center">Baux DHCP<i class="fas fa-chevron-down text-slate-400"></i></summary>
               <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
                 <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded">
-                  <thead class="border-b"><tr><th class="p-2">IP</th><th class="p-2">MAC</th><th class="p-2">Hostname</th><th class="p-2"></th></tr></thead>
+                  <thead class="border-b"><tr><th class="p-2">IP</th><th class="p-2">MAC</th><th class="p-2">Hôte</th><th class="p-2"></th></tr></thead>
                   <tbody>
                     <tr v-for="(l, idx) in monitoring.dhcp_leases" :key="idx" class="border-b last:border-0">
                       <td class="p-2">{{ l.ip }}</td>
                       <td class="p-2 font-mono text-xs">{{ l.mac }}</td>
                       <td class="p-2">{{ l.hostname }}</td>
-                      <td class="p-2"><button @click="addStaticFromLease(l)" class="text-blue-600 dark:text-blue-400 hover:underline text-xs">make static</button></td>
+                      <td class="p-2"><button @click="addStaticFromLease(l)" class="text-blue-600 dark:text-blue-400 hover:underline text-xs">rendre statique</button></td>
                     </tr>
                   </tbody>
                 </table>

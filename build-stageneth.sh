@@ -58,6 +58,7 @@ ${RUNTIME} build \
     --build-arg TARGET="$TARGET" \
     --build-arg STAGENETH_VERSION="$STAGENETH_VERSION" \
     --build-arg BUILD_SEMVER_SUFFIX="$BUILD_SEMVER_SUFFIX" \
+    --progress=plain \
     .
 
 set +e

@@ -1,38 +1,58 @@
           <div v-if="currentTab==='discovery'">
-            <h2 class="text-lg font-semibold mb-3">mDNS Discovery</h2>
+            <h2 class="text-2xl font-bold mb-2">Découverte mDNS</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Scanne les services annoncés en multicast DNS pour repérer les équipements AV et les services Dante/NDI.</p>
             <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-4 space-y-3">
               <div class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
                 <div class="md:col-span-2">
-                  <label class="block text-xs text-slate-500 mb-1">Service type</label>
+                  <label class="block text-xs text-slate-500 mb-1">Type de service</label>
                   <input v-model="mdnsService" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
                 </div>
                 <div>
-                  <label class="block text-xs text-slate-500 mb-1">Duration (s)</label>
+                  <label class="block text-xs text-slate-500 mb-1">Durée (s)</label>
                   <input v-model.number="mdnsDuration" type="number" min="1" max="10" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
                 </div>
                 <div class="md:col-span-2">
-                  <button @click="runMdns" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Discover</button>
+                  <button @click="runMdns" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Découvrir</button>
                 </div>
               </div>
+              <p class="text-xs text-slate-500 mb-1">Services AV courants</p>
               <div class="flex flex-wrap gap-2 text-xs">
-                <button @click="mdnsService='_services._dns-sd._udp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">all services</button>
-                <button @click="mdnsService='_http._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_http</button>
-                <button @click="mdnsService='_ssh._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_ssh</button>
-                <button @click="mdnsService='_dante._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_dante</button>
-                <button @click="mdnsService='_ndi._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600">_ndi</button>
+                <button @click="mdnsService='_services._dns-sd._udp'; runMdns()" class="px-2 py-1 rounded bg-slate-500 text-white hover:bg-slate-600">Tous</button>
+                <button @click="mdnsService='_http._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-400 text-white hover:bg-slate-500">HTTP</button>
+                <button @click="mdnsService='_ssh._tcp'; runMdns()" class="px-2 py-1 rounded bg-slate-600 text-white hover:bg-slate-700">SSH</button>
+                <button @click="mdnsService='_dante._tcp'; runMdns()" class="px-2 py-1 rounded bg-blue-500 text-white hover:bg-blue-600">Dante</button>
+                <button @click="mdnsService='_ndi._tcp'; runMdns()" class="px-2 py-1 rounded bg-pink-500 text-white hover:bg-pink-600">NDI</button>
+                <button @click="mdnsService='_artnet._udp'; runMdns()" class="px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600">Art-Net</button>
+                <button @click="mdnsService='_sacn._udp'; runMdns()" class="px-2 py-1 rounded bg-purple-500 text-white hover:bg-purple-600">sACN</button>
+                <button @click="mdnsService='_nmos-node._tcp'; runMdns()" class="px-2 py-1 rounded bg-orange-500 text-white hover:bg-orange-600">NMOS node</button>
+                <button @click="mdnsService='_nmos-registration._tcp'; runMdns()" class="px-2 py-1 rounded bg-orange-400 text-white hover:bg-orange-500">NMOS reg</button>
+                <button @click="mdnsService='_st2110._tcp'; runMdns()" class="px-2 py-1 rounded bg-green-500 text-white hover:bg-green-600">ST2110</button>
+                <button @click="mdnsService='_rtsp._tcp'; runMdns()" class="px-2 py-1 rounded bg-cyan-500 text-white hover:bg-cyan-600">RTSP</button>
               </div>
             </div>
-            <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded shadow" v-if="mdnsResults.length">
-              <thead class="border-b"><tr><th class="p-2">Service</th><th class="p-2">Device name</th><th class="p-2">Hostname</th><th class="p-2">Port</th><th class="p-2">IP</th><th class="p-2">TXT</th></tr></thead>
-              <tbody>
-                <tr v-for="(r, idx) in mdnsResults" :key="idx" class="border-b last:border-0">
-                  <td class="p-2">{{ r.type }}</td>
-                  <td class="p-2 font-medium">{{ mdnsFriendlyName(r) }}</td>
-                  <td class="p-2">{{ r.hostname || '-' }}</td>
-                  <td class="p-2">{{ r.port || '-' }}</td>
-                  <td class="p-2">{{ r.ip || '-' }}</td>
-                  <td class="p-2 text-xs">{{ (r.txt || []).join(', ') }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="flex items-center justify-between mb-2" v-if="mdnsResults.length">
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ mdnsResults.length }} résultat(s) trouvé(s)</p>
+              <button @click="mdnsResults = []" class="px-3 py-1 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-800 text-xs">Effacer</button>
+            </div>
+            <div v-if="mdnsResults.length" class="space-y-4">
+              <div v-for="([type, list], tidx) in mdnsByType" :key="type" class="bg-white dark:bg-slate-800 p-4 rounded shadow">
+                <h3 class="text-md font-semibold mb-2 flex items-center gap-2">
+                  <span class="inline-block w-2.5 h-2.5 rounded-full" :class="serviceColor(type)"></span>
+                  {{ type }} <span class="text-xs text-slate-500">({{ list.length }})</span>
+                </h3>
+                <table class="w-full text-left text-sm">
+                  <thead class="border-b"><tr><th class="p-2">Nom</th><th class="p-2">Hôte</th><th class="p-2">Port</th><th class="p-2">IP</th><th class="p-2">TXT</th></tr></thead>
+                  <tbody>
+                    <tr v-for="(r, idx) in list" :key="tidx + '-' + idx" class="border-b last:border-0">
+                      <td class="p-2 font-medium">{{ mdnsFriendlyName(r) }}</td>
+                      <td class="p-2">{{ r.hostname || '-' }}</td>
+                      <td class="p-2">{{ r.port || '-' }}</td>
+                      <td class="p-2">{{ r.ip || '-' }}</td>
+                      <td class="p-2 text-xs">{{ (r.txt || []).join(', ') }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <p v-else class="text-sm text-slate-500 dark:text-slate-400">Aucun service mDNS découvert. Lancez un scan AV.</p>
           </div>

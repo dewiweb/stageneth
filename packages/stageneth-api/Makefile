@@ -7,7 +7,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=stageneth-api
 PKG_VERSION:=0.2.0
-PKG_RELEASE:=1
+PKG_RELEASE:=3
 PKG_LICENSE:=GPL-2.0-only
 
 PKG_BUILD_DIR:=$(BUILD_DIR)/stageneth-api-$(PKG_VERSION)
@@ -18,8 +18,7 @@ define Package/stageneth-api
 	SECTION:=base
 	CATEGORY:=StageNeth
 	TITLE:=StageNeth REST API server
-	DEPENDS:=+stageneth-network +nginx-ssl +openssl-util
-	PKGARCH:=all
+	DEPENDS:=+stageneth-network +nginx-ssl +openssl-util +ethtool +ip-bridge +mdnsresponder
 endef
 
 define Package/stageneth-api/description

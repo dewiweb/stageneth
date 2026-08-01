@@ -203,7 +203,7 @@ def generate_dhcp(svc_name, svc):
         qset(f"dhcp.{ifname}", 'start', '101'),
         qset(f"dhcp.{ifname}", 'limit', '154'),
         qset(f"dhcp.{ifname}", 'leasetime', '12h'),
-        f"add_list dhcp.{ifname}.dhcp_option='42,{ipaddr}'",
+        f"add_list dhcp.{ifname}.dhcp_option=42,{ipaddr}",
         f"delete dhcp.{ifname}.interface_name",
         f"add_list dhcp.{ifname}.interface_name={ifname}",
     ]

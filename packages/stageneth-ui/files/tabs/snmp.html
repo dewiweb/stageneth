@@ -1,11 +1,65 @@
           <div v-if="currentTab==='snmp'">
-            <h2 class="text-lg font-semibold mb-3">SNMP walk</h2>
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-2 bg-white dark:bg-slate-800 p-4 rounded shadow mb-4">
-              <input v-model="snmpQuery.host" placeholder="host IP" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <input v-model.number="snmpQuery.port" type="number" placeholder="port" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <input v-model="snmpQuery.community" placeholder="community" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <input v-model="snmpQuery.oid" placeholder="OID" class="p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
-              <button @click="runSnmpWalk" :disabled="!snmpQuery.host || !snmpQuery.oid" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Walk</button>
+            <h2 class="text-2xl font-bold mb-2">SNMP walk</h2>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Interroge un équipement distant via SNMP v2c ou v3 pour lister les OID.</p>
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-4 space-y-3">
+              <div class="grid grid-cols-1 md:grid-cols-6 gap-2">
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Hôte</label>
+                  <input v-model="snmpQuery.host" placeholder="10.0.0.10" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Port</label>
+                  <input v-model.number="snmpQuery.port" type="number" placeholder="161" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Version</label>
+                  <select v-model="snmpQuery.version" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                    <option value="v2c">SNMP v2c</option>
+                    <option value="v3">SNMP v3</option>
+                  </select>
+                </div>
+                <div v-if="snmpQuery.version === 'v2c'" class="md:col-span-3">
+                  <label class="block text-xs text-slate-500 mb-1">Community</label>
+                  <input v-model="snmpQuery.community" placeholder="public" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div v-if="snmpQuery.version === 'v3'">
+                  <label class="block text-xs text-slate-500 mb-1">Utilisateur</label>
+                  <input v-model="snmpQuery.username" placeholder="admin" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div v-if="snmpQuery.version === 'v3'">
+                  <label class="block text-xs text-slate-500 mb-1">Auth protocol</label>
+                  <select v-model="snmpQuery.authProtocol" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="MD5">MD5</option><option value="SHA">SHA</option></select>
+                </div>
+                <div v-if="snmpQuery.version === 'v3'">
+                  <label class="block text-xs text-slate-500 mb-1">Auth password</label>
+                  <input v-model="snmpQuery.authPass" type="password" placeholder="auth" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div v-if="snmpQuery.version === 'v3'">
+                  <label class="block text-xs text-slate-500 mb-1">Priv protocol</label>
+                  <select v-model="snmpQuery.privProtocol" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="DES">DES</option><option value="AES">AES</option></select>
+                </div>
+                <div v-if="snmpQuery.version === 'v3'">
+                  <label class="block text-xs text-slate-500 mb-1">Priv password</label>
+                  <input v-model="snmpQuery.privPass" type="password" placeholder="priv" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+                <div v-if="snmpQuery.version === 'v3'">
+                  <label class="block text-xs text-slate-500 mb-1">Sécurité</label>
+                  <select v-model="snmpQuery.securityLevel" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"><option value="NoAuthNoPriv">NoAuthNoPriv</option><option value="AuthNoPriv">AuthNoPriv</option><option value="AuthPriv">AuthPriv</option></select>
+                </div>
+                <div class="md:col-span-3">
+                  <label class="block text-xs text-slate-500 mb-1">OID</label>
+                  <input v-model="snmpQuery.oid" placeholder="1.3.6.1.2.1.1.1.0" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs text-slate-500">OID rapide :</span>
+                <button v-for="o in [{l:'sysDescr', v:'1.3.6.1.2.1.1.1.0'}, {l:'sysUpTime', v:'1.3.6.1.2.1.1.3.0'}, {l:'sysName', v:'1.3.6.1.2.1.1.5.0'}, {l:'ifDescr', v:'1.3.6.1.2.1.2.2.1.2'}, {l:'ifInOctets', v:'1.3.6.1.2.1.2.2.1.10'}, {l:'dot1dBaseBridge', v:'1.3.6.1.2.1.17.1.1.0'}]" :key="o.v" @click="snmpQuery.oid = o.v" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-xs" :class="snmpQuery.oid === o.v ? 'ring-2 ring-blue-500' : ''">{{ o.l }}</button>
+              </div>
+              <button @click="runSnmpWalk" :disabled="!snmpQuery.host || !snmpQuery.oid || (snmpQuery.version === 'v3' && !snmpQuery.username)" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 disabled:bg-gray-400">Walk</button>
+            </div>
+            <div class="flex items-center justify-between mb-2" v-if="snmpResult.length">
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ snmpResult.length }} OID(s) trouvé(s)</p>
+              <button @click="snmpResult = []" class="px-3 py-1 rounded bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 hover:bg-red-200 dark:hover:bg-red-800 text-xs">Effacer</button>
             </div>
             <table class="w-full text-left text-sm bg-white dark:bg-slate-800 rounded shadow" v-if="snmpResult.length">
               <thead class="border-b"><tr><th class="p-2">OID</th><th class="p-2">Type</th><th class="p-2">Value</th></tr></thead>
@@ -17,4 +71,5 @@
                 </tr>
               </tbody>
             </table>
+            <p v-else class="text-sm text-slate-500 dark:text-slate-400">Aucun résultat. Lancer un Walk pour scanner l'équipement.</p>
           </div>

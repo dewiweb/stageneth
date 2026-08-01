@@ -9,11 +9,11 @@ STOP=90
 USE_PROCD=1
 
 start_service() {
-    /usr/libexec/stageneth/stageneth-network.py apply
+    /usr/sbin/stageneth-network apply
 }
 
 reload_service() {
-    /usr/libexec/stageneth/stageneth-network.py apply
+    /usr/sbin/stageneth-network apply
 }
 
 service_triggers() {
