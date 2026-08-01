@@ -7,7 +7,7 @@
 Routeur dédié au spectacle vivant, basé sur **OpenWrt**.
 StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur réseau Python pour séparer les flux audio/vidéo/lumière (AV) du réseau de gestion, tout en fournissant les services DHCP, NTP, mDNS et SNMP nécessaires aux équipements scéniques.
 
-> **État du projet** : StageNeth est en **version de développement** (`0.2.0-beta.x`). Beaucoup de fonctionnalités restent à stabiliser, à valider sur banc et à compléter avant d'obtenir un OS déployable en production. Ne pas utiliser sur un spectacle réel sans validation approfondie.
+> **État du projet** : StageNeth est en **version de développement** (`0.2.0-beta.19`). Beaucoup de fonctionnalités restent à stabiliser, à valider sur banc et à compléter avant d'obtenir un OS déployable en production. Ne pas utiliser sur un spectacle réel sans validation approfondie.
 
 ## Fonctionnalités
 
@@ -54,10 +54,10 @@ Voir [docs/build.md](docs/build.md) pour les détails.
 
 ## Test rapide avec QEMU
 
-Remplacez `0.2.0-beta.11` par la version indiquée dans `build.conf` :
+Remplacez `0.2.0-beta.19` par la version indiquée dans `build.conf` (ou utilisez directement les images des [GitHub Releases](https://github.com/dewiweb/stageneth/releases)) :
 
 ```bash
-gunzip -c bin/stageneth-0.2.0-beta.11-x86-64-generic-ext4-combined.img.gz > /tmp/stageneth-test.img
+gunzip -c bin/stageneth-0.2.0-beta.19-x86-64-generic-ext4-combined.img.gz > /tmp/stageneth-test.img
 qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
   -hda /tmp/stageneth-test.img -display none -serial file:/tmp/stageneth-qemu.log \
   -netdev user,id=net0,net=192.168.1.0/24,hostfwd=tcp::2222-192.168.1.1:22,hostfwd=tcp::8443-192.168.1.1:443 \

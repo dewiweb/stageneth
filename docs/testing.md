@@ -2,10 +2,10 @@
 
 ## Lancer l'image avec QEMU
 
-Remplacez `0.2.0-beta.11` par la version de `build.conf` :
+Remplacez `0.2.0-beta.19` par la version de `build.conf` (ou prenez les images dans les [GitHub Releases](https://github.com/dewiweb/stageneth/releases)) :
 
 ```bash
-gunzip -c bin/stageneth-0.2.0-beta.11-x86-64-generic-ext4-combined.img.gz > /tmp/stageneth-test.img
+gunzip -c bin/stageneth-0.2.0-beta.19-x86-64-generic-ext4-combined.img.gz > /tmp/stageneth-test.img
 qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
   -hda /tmp/stageneth-test.img -display none -serial file:/tmp/stageneth-qemu.log \
   -netdev user,id=net0,net=192.168.1.0/24,hostfwd=tcp::2222-192.168.1.1:22,hostfwd=tcp::8443-192.168.1.1:443 \
@@ -100,7 +100,7 @@ qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
 | Action | Test | Attendu |
 |---|---|---|
 | Monitoring UI | Onglet `Monitoring` | CPU, mémoire, DHCP leases, services UP/DOWN, alertes |
-| Logs | Onglet `Logs` | `logread` temps réel |
+| Logs | Onglet `Logs` | Logs multi-sources (logread, rsyslog, nginx) triés par timestamp, filtrables et colorisés en temps réel |
 | SNMP | `snmpwalk -v2c -c public <ip> 1.3.6.1.2.1.1` | Réponse système |
 | Syslog distant | Envoyer un log UDP 514 depuis un switch | Fichier `/var/log/remote/` (si `rsyslog` configuré) |
 
