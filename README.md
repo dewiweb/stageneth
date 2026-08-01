@@ -5,7 +5,7 @@
 </p>
 
 Routeur dédié au spectacle vivant, basé sur **OpenWrt**.
-StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur réseau Python pour séparer les flux audio/vidéo/lumière (AV) du réseau de gestion, tout en fournissant les services DHCP, NTP, mDNS et SNMP nécessaires aux équipements scéniques.
+StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur réseau Go pour séparer les flux audio/vidéo/lumière (AV) du réseau de gestion, tout en fournissant les services DHCP, NTP, mDNS et SNMP nécessaires aux équipements scéniques.
 
 > **État du projet** : StageNeth est en **version de développement** (`0.2.0-beta.19`). Beaucoup de fonctionnalités restent à stabiliser, à valider sur banc et à compléter avant d'obtenir un OS déployable en production. Ne pas utiliser sur un spectacle réel sans validation approfondie.
 
@@ -13,12 +13,13 @@ StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur rése
 
 - **Interface web Vue 3** en HTTPS avec deux niveaux d'accès : mode simple (opérateur) et mode expert (tech)
 - **API Go** sécurisée par JWT
-- **Orchestration réseau Python** : génération automatique des VLANs 802.1q, bridges, firewall, DHCP, QoS/NIC tuning
+- **Orchestration réseau Go** : génération automatique des VLANs 802.1q, bridges, firewall, DHCP, QoS/NIC tuning, et PTP
 - **Configuration par service** : chaque protocole (Dante, NDI, AES67/RAVENNA, ST 2110, Art-Net, sACN, PTP, AVB, NMOS, MA-Net/Proprietary...) a son propre VLAN, son DSCP, sa priorité et son MTU
 - **Trunk AV configurable** (`eth1` par défaut) et **interface dédiée ST 2110** (`eth2`) en jumbo frames (MTU 9000)
 - **Serveur NTP** avec DHCP option 42 automatique par VLAN
-- **Refleteur mDNS** (`umdns`) entre les VLANs AV
-- **Surveillance** : monitoring CPU/mémoire/services, alertes, logs temps réel, découverte mDNS, agent SNMP et serveur syslog
+- **Réflecteur mDNS** (`umdns`) et découverte mDNS entre les VLANs AV
+- **Surveillance** : monitoring CPU/mémoire/services, alertes, journaux multi-sources triés/filtrés/colorisés, agent SNMP v2c/v3 et serveur syslog
+- **Système** : changement de hostname, paramètres de sauvegarde/restauration UCI
 - **Support constructeurs** : profils générique, Luminex GigaCore, Cisco SG350/AV, Netgear AV avec conseils IGMP/PTP/jumbo/DSCP
 - **Firewall durci** : pas de NAT sur les zones média, inter-VLAN fermé par défaut, DHCP/DNS/NTP autorisés localement
 - **Build conteneurisée** avec Podman
@@ -28,7 +29,7 @@ StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur rése
 - `packages/` : packages OpenWrt StageNeth
   - `stageneth-api` : API Go
   - `stageneth-ui` : interface Vue 3
-  - `stageneth-network` : orchestrateur Python et UCI defaults
+  - `stageneth-network` : orchestrateur Go, UCI defaults, PTP (linuxptp)
 - `files/` : overlay OpenWrt (`uci-defaults`, bannière, `openwrt_release`)
 - `config/` : fragments de configuration OpenWrt
 - `builder/` : Containerfile et scripts
