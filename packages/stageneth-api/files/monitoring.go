@@ -429,3 +429,53 @@ func monitoringSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, data, "monitoring summary")
 }
+
+func metricsPrometheus(w http.ResponseWriter, r *http.Request) {
+	load, _ := strconv.ParseFloat(strings.Fields(readFileTrim("/proc/loadavg"))[0], 64)
+	uptime, _ := strconv.ParseFloat(strings.Fields(readFileTrim("/proc/uptime"))[0], 64)
+	mem := parseMemInfo()
+	interfaces := parseNetDev()
+	addrs := parseInterfaceAddrs()
+	services := serviceStatuses()
+	ptp := parsePtpStatus()
+	conntrackCurrent := readFileTrim("/proc/net/nf_conntrack_count")
+	conntrackMax := readFileTrim("/proc/sys/net/netfilter/nf_conntrack_max")
+	cc, _ := strconv.ParseUint(conntrackCurrent, 10, 64)
+	cm, _ := strconv.ParseUint(conntrackMax, 10, 64)
+	dhcpLeases := parseDHCPLeases()
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "# HELP stageneth_cpu_percent CPU usage percent\n# TYPE stageneth_cpu_percent gauge\nstageneth_cpu_percent %.2f\n", cpuUsage())
+	fmt.Fprintf(w, "# HELP stageneth_load Load average\n# TYPE stageneth_load gauge\nstageneth_load %.3f\n", load)
+	fmt.Fprintf(w, "# HELP stageneth_uptime_seconds Uptime in seconds\n# TYPE stageneth_uptime_seconds counter\nstageneth_uptime_seconds %d\n", uint64(uptime))
+	fmt.Fprintf(w, "# HELP stageneth_memory_used_percent Memory used percent\n# TYPE stageneth_memory_used_percent gauge\nstageneth_memory_used_percent %.2f\n", mem["used_percent"])
+	fmt.Fprintf(w, "# HELP stageneth_memory_total_kb Memory total in kB\n# TYPE stageneth_memory_total_kb gauge\nstageneth_memory_total_kb %d\n", mem["total_kb"])
+	fmt.Fprintf(w, "# HELP stageneth_connections_current Current conntrack connections\n# TYPE stageneth_connections_current gauge\nstageneth_connections_current %d\n", cc)
+	fmt.Fprintf(w, "# HELP stageneth_connections_max Max conntrack connections\n# TYPE stageneth_connections_max gauge\nstageneth_connections_max %d\n", cm)
+	fmt.Fprintf(w, "# HELP stageneth_dhcp_leases_count Number of DHCP leases\n# TYPE stageneth_dhcp_leases_count gauge\nstageneth_dhcp_leases_count %d\n", len(dhcpLeases))
+	fmt.Fprintf(w, "# HELP stageneth_ptp_offset_ns PTP offset\n# TYPE stageneth_ptp_offset_ns gauge\nstageneth_ptp_offset_ns %.3f\n", ptp["offset_ns"])
+	fmt.Fprintf(w, "# HELP stageneth_ptp_delay_ns PTP delay\n# TYPE stageneth_ptp_delay_ns gauge\nstageneth_ptp_delay_ns %.3f\n", ptp["delay_ns"])
+	fmt.Fprintln(w, "# HELP stageneth_net_rx_bytes Received bytes per interface")
+	fmt.Fprintln(w, "# TYPE stageneth_net_rx_bytes gauge")
+	for _, iface := range interfaces {
+		name, _ := iface["name"].(string)
+		fmt.Fprintf(w, "stageneth_net_rx_bytes{name=%q} %d\n", name, iface["rx_bytes"])
+		fmt.Fprintf(w, "stageneth_net_tx_bytes{name=%q} %d\n", name, iface["tx_bytes"])
+		fmt.Fprintf(w, "stageneth_net_rx_packets{name=%q} %d\n", name, iface["rx_packets"])
+		fmt.Fprintf(w, "stageneth_net_tx_packets{name=%q} %d\n", name, iface["tx_packets"])
+		ip := addrs[name]
+		if ip != "" {
+			fmt.Fprintf(w, "stageneth_interface_ip{name=%q,ip=%q} 1\n", name, ip)
+		}
+	}
+	fmt.Fprintln(w, "# HELP stageneth_service_up Service is running")
+	fmt.Fprintln(w, "# TYPE stageneth_service_up gauge")
+	for svc, up := range services {
+		upVal := 0
+		if up {
+			upVal = 1
+		}
+		fmt.Fprintf(w, "stageneth_service_up{name=%q} %d\n", svc, upVal)
+	}
+}

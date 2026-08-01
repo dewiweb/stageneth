@@ -36,6 +36,7 @@ func main() {
 	http.HandleFunc("/api/network/reload", auth(networkReload))
 	http.HandleFunc("/api/network/interfaces", auth(networkInterfaces))
 	http.HandleFunc("/api/monitoring/summary", auth(monitoringSummary))
+	http.HandleFunc("/api/metrics", auth(metricsPrometheus))
 	http.HandleFunc("/api/snmp/walk", auth(snmpWalk))
 	http.HandleFunc("/api/mdns/discover", auth(mdnsDiscover))
 	http.HandleFunc("/api/ntp", auth(ntpGet))
