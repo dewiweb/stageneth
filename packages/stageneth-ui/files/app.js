@@ -63,6 +63,8 @@ createApp({
       monitoring: {},
       monitoringHistory: { cpu: [], memory: [] },
       monitoringTimeout: null,
+      alerts: [],
+      alertsTimeout: null,
       snmpQuery: { host: '', port: 161, community: 'public', oid: '1.3.6.1.2.1.1.1.0', version: 'v2c', username: '', authProtocol: 'MD5', authPass: '', privProtocol: 'DES', privPass: '', securityLevel: 'AuthNoPriv' },
       snmpResult: [],
       mdnsService: '_services._dns-sd._udp',
@@ -685,9 +687,11 @@ createApp({
     },
     startMonitoring() {
       this.fetchMonitoring();
+      this.fetchAlerts();
     },
     stopMonitoring() {
       if (this.monitoringTimeout) { clearTimeout(this.monitoringTimeout); this.monitoringTimeout = null; }
+      if (this.alertsTimeout) { clearTimeout(this.alertsTimeout); this.alertsTimeout = null; }
     },
     async fetchMonitoring() {
       try {
@@ -703,6 +707,16 @@ createApp({
         this.toast('Monitoring failed: ' + e.message, 'error');
       } finally {
         this.monitoringTimeout = setTimeout(() => this.fetchMonitoring(), 5000);
+      }
+    },
+    async fetchAlerts() {
+      try {
+        const res = await api('/api/alerts?limit=50', 'GET');
+        this.alerts = res.data || [];
+      } catch (e) {
+        // silently retry next cycle
+      } finally {
+        this.alertsTimeout = setTimeout(() => this.fetchAlerts(), 10000);
       }
     },
     async loadPresets() {
