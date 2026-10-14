@@ -12,6 +12,10 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      packages_only:
+        description: 'Ne construire que les .ipk (matrice SDK, pas d''image)'
+        type: boolean
+        default: false
       target:
         description: 'Cible (nom dans config/targets/)'
         type: choice
@@ -76,7 +80,10 @@ jobs:
     needs: test
     # Full OpenWrt image builds cost ~2-3h per run — only on release
     # tags and manual dispatch (with target picker), not every push/PR.
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    # packages_only skips this entirely for a quick SDK-matrix check.
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && !inputs.packages_only)
     runs-on: ubuntu-latest
     permissions:
       contents: write
