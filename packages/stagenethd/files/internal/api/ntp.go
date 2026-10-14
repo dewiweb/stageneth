@@ -69,7 +69,7 @@ func ntpGet(w http.ResponseWriter, r *http.Request) {
 		"servers":       servers,
 		"running":       ntpdRunning(),
 		"timezone":      timezone,
-		"clock":         clockStatus(),
+		"clock":         clockStatus(true),
 	}, "ntp status")
 }
 
@@ -161,15 +161,16 @@ func ntpSet(w http.ResponseWriter, r *http.Request) {
 	ntpGet(w, r)
 }
 
-// timeGet serves the lightweight clock tick (polled once per second by the
-// NTP tab). ntpGet also embeds it as "clock".
+// timeGet serves the lightweight clock tick (polled once per second by
+// the NTP tab) — one `date` fork, no ntpq, no peer query.
 func timeGet(w http.ResponseWriter, r *http.Request) {
-	respond(w, 200, clockStatus(), "time")
+	respond(w, 200, clockStatus(false), "time")
 }
 
-// clockStatus returns the current date/time and sync source. One `date`
-// fork, timezone read via the parser — it is polled every second.
-func clockStatus() map[string]string {
+// clockStatus returns the current date/time. When peers is true it also
+// queries ntpq for the sync source/stratum/offset — that fork+5s-timeout
+// path is only worth it on the full /api/v1/ntp read, not the 1Hz tick.
+func clockStatus(peers bool) map[string]string {
 	tz := "UTC0"
 	if f, err := systemConfig(); err == nil {
 		if sys := findByType(f, "system"); sys != nil {
@@ -189,19 +190,21 @@ func clockStatus() map[string]string {
 	}
 
 	source, stratum, offset := "-", "", ""
-	if out, err := func() ([]byte, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		return exec.CommandContext(ctx, "ntpq", "-pn", "127.0.0.1").Output()
-	}(); err == nil {
-		for _, line := range strings.Split(string(out), "\n") {
-			if strings.HasPrefix(line, "*") {
-				if f := strings.Fields(line); len(f) >= 9 {
-					source = strings.TrimPrefix(f[0], "*")
-					stratum = f[2]
-					offset = f[8]
+	if peers {
+		if out, err := func() ([]byte, error) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			return exec.CommandContext(ctx, "ntpq", "-pn", "127.0.0.1").Output()
+		}(); err == nil {
+			for _, line := range strings.Split(string(out), "\n") {
+				if strings.HasPrefix(line, "*") {
+					if f := strings.Fields(line); len(f) >= 9 {
+						source = strings.TrimPrefix(f[0], "*")
+						stratum = f[2]
+						offset = f[8]
+					}
+					break
 				}
-				break
 			}
 		}
 	}
