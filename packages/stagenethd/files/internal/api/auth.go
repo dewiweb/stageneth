@@ -148,6 +148,8 @@ func changePassword(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, err.Error())
 		return
 	}
+	// kill the user's other sessions — the old credential is dead
+	sessions.DeleteForUser(se.User, auth.SessionFromRequest(r))
 	audit("password_change", "", r)
 	respond(w, 200, nil, "password changed")
 }
@@ -176,6 +178,9 @@ func usersSet(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, err.Error())
 		return
 	}
+	// a role/password change must not ride on a stale session — the user
+	// re-authenticates and picks up the new role
+	sessions.DeleteForUser(req.Username, "")
 	audit("user_set", req.Username+" role="+req.Role, r)
 	respond(w, 200, nil, "user saved")
 }
@@ -196,6 +201,7 @@ func usersDelete(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, err.Error())
 		return
 	}
+	sessions.DeleteForUser(req.Username, "")
 	audit("user_delete", req.Username, r)
 	respond(w, 200, nil, "user removed")
 }

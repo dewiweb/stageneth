@@ -67,6 +67,18 @@ func (s *Store) Delete(id string) {
 	s.mu.Unlock()
 }
 
+// DeleteForUser invalidates every session of a user except keepID.
+// Used on password change and user deletion.
+func (s *Store) DeleteForUser(user, keepID string) {
+	s.mu.Lock()
+	for id, se := range s.sess {
+		if se.User == user && id != keepID {
+			delete(s.sess, id)
+		}
+	}
+	s.mu.Unlock()
+}
+
 // SetCookie writes the session cookie.
 func SetCookie(w http.ResponseWriter, id string, ttl time.Duration) {
 	http.SetCookie(w, &http.Cookie{

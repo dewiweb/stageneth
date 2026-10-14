@@ -88,6 +88,27 @@ func TestSessions(t *testing.T) {
 	}
 }
 
+func TestDeleteForUser(t *testing.T) {
+	s := NewStore()
+	a1, _ := s.Create("alice", "tech")
+	a2, _ := s.Create("alice", "tech")
+	b1, _ := s.Create("bob", "operator")
+	s.DeleteForUser("alice", a2)
+	if _, ok := s.Get(a1); ok {
+		t.Error("a1 should be invalidated")
+	}
+	if _, ok := s.Get(a2); !ok {
+		t.Error("a2 should be kept")
+	}
+	if _, ok := s.Get(b1); !ok {
+		t.Error("bob's session must survive")
+	}
+	s.DeleteForUser("alice", "")
+	if _, ok := s.Get(a2); ok {
+		t.Error("a2 should be invalidated with empty keepID")
+	}
+}
+
 func TestSessionExpiry(t *testing.T) {
 	s := NewStore()
 	id, _ := s.Create("a", "operator")

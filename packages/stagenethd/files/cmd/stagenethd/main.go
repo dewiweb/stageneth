@@ -97,7 +97,7 @@ func printPlan(p *engine.Plan) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: stagenethd apply|preview|rollback")
+		fmt.Println("Usage: stagenethd apply [-noreload]|preview|rollback")
 		os.Exit(1)
 	}
 	st, err := stcfg.Load("/etc/config/stageneth")
@@ -106,7 +106,9 @@ func main() {
 		os.Exit(1)
 	}
 	e := engine.New()
-	switch os.Args[1] {
+	cmd := os.Args[1]
+	noReload := len(os.Args) > 2 && os.Args[2] == "-noreload"
+	switch cmd {
 	case "preview":
 		plan, err := e.Plan(st)
 		if err != nil {
@@ -129,6 +131,16 @@ func main() {
 			return
 		}
 		fmt.Println("Changed configs:", strings.Join(changed, ", "))
+		if noReload {
+			// boot path: services read the generated files at their own
+			// start — reloading now could race ubus, and a failure would
+			// wrongly trigger rollback. The files are the success path.
+			if err := e.SaveLastGood(snap); err != nil {
+				fmt.Fprintln(os.Stderr, "warning: last-good snapshot not saved:", err)
+			}
+			fmt.Println("Files written; service reload deferred to boot order.")
+			return
+		}
 		if err := reloadServices(changed, render.AvailableInterfaces()); err != nil {
 			fmt.Fprintln(os.Stderr, "reload failed:", err, "— rolling back")
 			if rerr := e.Restore(snap); rerr != nil {
@@ -166,7 +178,7 @@ func main() {
 		}
 		fmt.Println("Rolled back to last-good configuration:", strings.Join(restored, ", "))
 	default:
-		fmt.Println("Usage: stagenethd apply|preview|rollback")
+		fmt.Println("Usage: stagenethd apply [-noreload]|preview|rollback")
 		os.Exit(1)
 	}
 }

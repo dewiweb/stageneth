@@ -3,17 +3,29 @@
 # Copyright (C) 2026 StageNeth Contributors
 # SPDX-License-Identifier: GPL-2.0-only
 
-START=20
+START=15
 STOP=90
 
 USE_PROCD=1
 
+# START=15: before network(19)/firewall(19)/dnsmasq(19) so generated
+# config is on disk before they read it — no first-boot flap.
+# -noreload: services haven't started; reloads would race ubus and are
+# pointless since each service reads its config at start.
+
+run_apply() {
+    out=$(timeout 60 /usr/sbin/stagenethd apply "$@" 2>&1)
+    rc=$?
+    [ -n "$out" ] && echo "$out" | logger -t stagenethd
+    return $rc
+}
+
 start_service() {
-    /usr/sbin/stagenethd apply
+    run_apply -noreload
 }
 
 reload_service() {
-    /usr/sbin/stagenethd apply
+    run_apply
 }
 
 service_triggers() {
