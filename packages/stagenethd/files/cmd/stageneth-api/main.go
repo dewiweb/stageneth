@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"os/user"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -40,6 +42,17 @@ func main() {
 	}
 	if err := os.Chmod(sock, 0660); err != nil {
 		log.Fatal("chmod:", err)
+	}
+	// nginx workers are not root — hand the socket to their group so the
+	// proxy can connect. Try known candidates; on a root-run nginx the
+	// group change is harmless anyway.
+	for _, gname := range []string{"nginx", "nogroup", "nobody", "www-data"} {
+		if g, err := user.LookupGroup(gname); err == nil {
+			gid, _ := strconv.Atoi(g.Gid)
+			if err := os.Chown(sock, -1, gid); err == nil {
+				break
+			}
+		}
 	}
 
 	api.Init(auth.NewUsers(configPath()), auth.NewStore())

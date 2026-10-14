@@ -35,6 +35,7 @@ define Package/stageneth-ui/install
 	$(INSTALL_DATA) ./files/utils.js $(1)/www-stageneth/
 	$(CP) ./files/vendor $(1)/www-stageneth/
 	$(CP) ./files/tabs $(1)/www-stageneth/
+	$(CP) ./files/mixins $(1)/www-stageneth/
 
 	$(INSTALL_DIR) $(1)/etc/nginx/conf.d
 	$(INSTALL_DATA) ./files/stageneth-ui.locations $(1)/etc/nginx/conf.d/

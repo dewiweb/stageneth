@@ -1,9 +1,8 @@
 #!/bin/sh
 # StageNeth first-boot defaults
 
-# Set root password to 'stageneth' for test image
-hash='$1$stagenet$CYrKd38gWkJlOcsKAu/UN0'
-sed -i "s|^root:[^:]*:|root:${hash}:|" /etc/shadow
+# No root password is baked into the image: the first-boot wizard sets the
+# console (root) password together with the web admin account.
 
 # Set StageNeth hostname
 uci set system.@system[0].hostname="StageNeth"

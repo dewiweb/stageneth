@@ -247,6 +247,23 @@ func firstbootStatus(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]interface{}{"firstboot_done": firstbootDone(), "services": listServices(), "presets": presets}, "ok")
 }
 
+// setConsolePassword provisions the system root password so SSH/serial
+// console matches the credential created in the wizard. This is
+// provisioning, not authentication — the API never reads /etc/shadow.
+func setConsolePassword(password string) {
+	for _, args := range [][]string{{"-a", "sha512"}, {}} {
+		cmd := exec.Command("chpasswd", args...)
+		cmd.Stdin = strings.NewReader("root:" + password + "\n")
+		if err := cmd.Run(); err == nil {
+			return
+		}
+	}
+	// last resort: interactive passwd fed twice on stdin
+	cmd := exec.Command("passwd", "root")
+	cmd.Stdin = strings.NewReader(password + "\n" + password + "\n")
+	cmd.Run()
+}
+
 // grantSession creates a session cookie after firstboot provisioning.
 func grantSession(w http.ResponseWriter, user, role string) bool {
 	id, err := sessions.Create(user, role)
@@ -273,9 +290,10 @@ func wizard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := usersDB.Set("admin", "tech", req.Password); err != nil {
-		respond(w, 500, nil, "user creation failed")
+		respond(w, 400, nil, err.Error())
 		return
 	}
+	setConsolePassword(req.Password)
 	if req.Preset == "" {
 		req.Preset = "base"
 	}
@@ -306,9 +324,10 @@ func wizardSkip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := usersDB.Set("admin", "tech", req.Password); err != nil {
-		respond(w, 500, nil, "user creation failed")
+		respond(w, 400, nil, err.Error())
 		return
 	}
+	setConsolePassword(req.Password)
 	exec.Command("uci", "-q", "set", "stageneth.globals=stageneth").Run()
 	exec.Command("uci", "-q", "set", "stageneth.globals.firstboot_done=1").Run()
 	exec.Command("uci", "-q", "commit", "stageneth").Run()
