@@ -20,7 +20,14 @@ set -e
 ts=${1:?usage: build-ipks.sh <target>/<subtarget> [version] [outdir]}
 ver=${2:-${OWRT_VERSION:-v24.10.5}}
 ver=${ver#v}
-out=${3:-$(pwd)/ipk-out}
+# Resolve outdir to an absolute path BEFORE we cd into the SDK —
+# a relative path would silently write the ipks into the SDK tree
+# (inside $work), where the cleanup trap deletes them.
+out=${3:-ipk-out}
+case "$out" in
+    /*) ;;
+    *)  out="$(pwd)/$out" ;;
+esac
 
 base="https://downloads.openwrt.org/releases/${ver}/targets/${ts}"
 echo "== locating SDK for ${ts} (${ver})"
