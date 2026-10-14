@@ -21,6 +21,11 @@ on:
           - rpi4
           - bpi_r3
           - bpi_r4
+          - glinet_mt6000
+          - glinet_mt3000
+          - xiaomi_ax3000t
+          - linksys_e8450
+          - dynalink_dl-wrx36
 
 jobs:
   test:

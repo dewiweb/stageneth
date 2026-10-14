@@ -40,10 +40,43 @@ TARGET=nanopi_r5s ./build-stageneth.sh
 | `rpi4` | Raspberry Pi 4 / CM4 | 1G + USB NIC | RTL8152/AX88179 inclus (base.conf) |
 | `bpi_r3` | Banana Pi BPI-R3 (Filogic 830) | 4× 1G + 2× SFP | vraie topologie routeur AV |
 | `bpi_r4` | Banana Pi BPI-R4 (Filogic 880) | 4× 1G + 2× SFP+ 10G | uplinks fibre ST 2110 |
+| `glinet_mt6000` | GL.iNet Flint 2 (MT7986) | 2× 2.5G + 4× 1G | meilleur routeur grand public (~130 EUR) |
+| `glinet_mt3000` | GL.iNet Beryl AX (MT7981) | 2.5G + 1G | banc minimal de poche |
+| `xiaomi_ax3000t` | Xiaomi AX3000T (MT7981) | 4× 1G | le moins cher du marché (~40 EUR) |
+| `linksys_e8450` | Linksys E8450 / Belkin RT3200 (MT7622) | 4+1× 1G | classique d'occasion |
+| `dynalink_dl-wrx36` | Dynalink DL-WRX36 (IPQ8072A) | 4+1× 1G | quad-core, marché US |
 
 Le daemon Go est `CGO_ENABLED=0` et n'utilise que des API Linux portables
 (AF_PACKET, netlink, sysfs) : aucune modification de code n'est requise
 pour une nouvelle cible.
+
+## Routeurs OpenWrt existants (sans image dédiée)
+
+Les paquets `stagenethd` / `stageneth-ui` ne dépendent que de paquets des
+feeds officiels (`firewall4`, `nginx-ssl`, `linuxptp`, `umdns`,
+`mdns-repeater`, `snmpd`, `rsyslog`, `ethtool`, `ip-bridge`,
+`mdnsresponder`, `tcpdump`). Le build produit les `.ipk` dans
+`bin/packages/<arch>/` : ils s'installent donc sur **n'importe quel
+routeur supporté par OpenWrt 24.10** de la même architecture, sans image
+dédiée :
+
+```bash
+opkg update && opkg install ./stagenethd_*.ipk ./stageneth-ui_*.ipk
+```
+
+Mises en garde :
+
+- StageNeth **prend le contrôle** de `/etc/config/network`, `firewall`,
+  `dhcp`, `rsyslog`, `umdns` et `mdns_repeater` — le routeur devient une
+  appliance StageNeth, la configuration existante est remplacée à
+  l'application.
+- nginx écoute sur 80/443 → désactiver uhttpd/LuCI
+  (`/etc/init.d/uhttpd disable; /etc/init.d/uhttpd stop`) sinon conflit
+  de ports.
+- Il faut au moins 2 ports Ethernet distincts (mgmt + trunk). Sur un
+  switch DSA interne (`lan1`…`lan4`, `wan`), un port `wan`/`lanX` peut
+  porter le trunk 802.1Q — mais pour du vrai transit AV, préférez des
+  ports PHY séparés (GL-MT6000, BPI-R3) ou un switch géré en amont.
 
 ### Ajouter une cible
 

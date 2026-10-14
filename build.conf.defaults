@@ -10,5 +10,11 @@ REPO_CHANNEL=dev
 #   rpi4          — Raspberry Pi 4 (1G onboard + USB NIC)
 #   bpi_r3        — Banana Pi BPI-R3 (4x 1G + 2x SFP)
 #   bpi_r4        — Banana Pi BPI-R4 (4x 1G + 2x SFP+ 10G)
+# Routeurs grand public compatibles OpenWrt :
+#   glinet_mt6000      — GL.iNet Flint 2   (2x 2.5G + 4x 1G)
+#   glinet_mt3000      — GL.iNet Beryl AX  (2.5G + 1G, pocket)
+#   xiaomi_ax3000t     — Xiaomi AX3000T    (4x 1G, ~40 EUR)
+#   linksys_e8450      — Linksys E8450 / Belkin RT3200 (4+1x 1G)
+#   dynalink_dl-wrx36  — Dynalink DL-WRX36 (IPQ8072A, 4+1x 1G)
 TARGET=x86_64
 BUILD_SEMVER_SUFFIX=-beta.19
