@@ -15,6 +15,15 @@ import (
 	"time"
 )
 
+// initScript honors STAGENETH_INIT_DIR for test/recovery mounts —
+// same remap the api package applies to init.d invocations.
+func initScript(name string) string {
+	if d := os.Getenv("STAGENETH_INIT_DIR"); d != "" {
+		return filepath.Join(d, name)
+	}
+	return "/etc/init.d/" + name
+}
+
 func readFileTrim(path string) string {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -320,10 +329,16 @@ func serviceStatuses() map[string]bool {
 		"network":       procCommRunning("netifd"),
 		"dnsmasq":       procCommRunning("dnsmasq"),
 		"nginx":         procCommRunning("nginx"),
+		"umdns":         procCommRunning("umdns"),
+		"mdns-repeater": procCommRunning("mdns-repeater"),
+		"rsyslog":       procCommRunning("rsyslogd"),
+		"snmpd":         procCommRunning("snmpd"),
+		"ptp4l":         procCommRunning("ptp4l"),
 		"stageneth-api": true, // trivially running — it served this request
 	}
-	// fw4 has no persistent process — ask its init script (bounded)
-	b, _ := execBounded(3*time.Second, "/etc/init.d/firewall", "status")
+	// procd-managed daemons with no persistent comm name (fw4 is a
+	// ruleset, not a process) — ask the init script, bounded
+	b, _ := execBounded(3*time.Second, initScript("firewall"), "status")
 	out["firewall"] = strings.TrimSpace(string(b)) == "active"
 	return out
 }

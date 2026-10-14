@@ -50,7 +50,7 @@ cp "$GO_DIR/config" "$WORK/config/stageneth"
 cp "$GO_DIR/config.api" "$WORK/config/stagenethd"
 
 for s in network firewall dnsmasq umdns mdns-repeater rsyslog stageneth-ptp system; do
-	printf '#!/bin/sh\necho "$0 $*" >> "%s/initd.log"\nexit 0\n' "$WORK" > "$WORK/init.d/$s"
+	printf '#!/bin/sh\necho "$0 $*" >> "%s/initd.log"\n[ "$1" = "status" ] && echo active\nexit 0\n' "$WORK" > "$WORK/init.d/$s"
 	chmod +x "$WORK/init.d/$s"
 done
 

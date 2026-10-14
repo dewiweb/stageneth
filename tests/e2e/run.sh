@@ -75,11 +75,13 @@ cat > "$WORK/config/stagenethd" <<'EOF'
 config main 'main'
 	option enabled '1'
 EOF
-# stub init.d scripts — record invocations, always succeed
+# stub init.d scripts — record invocations, always succeed; report
+# 'active' for status probes so the service monitor sees them up
 for s in network firewall dnsmasq rsyslog umdns mdns-repeater stageneth-ptp system; do
 	cat > "$WORK/init.d/$s" <<EOF
 #!/bin/sh
 echo "$s \$*" >> "$WORK/init.log"
+[ "\$1" = "status" ] && echo active
 exit 0
 EOF
 	chmod +x "$WORK/init.d/$s"

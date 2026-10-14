@@ -159,7 +159,10 @@ createApp({
       const result = {};
       for (const [name, svc] of Object.entries(services)) {
         const bridge = devices[`br_${name}`] || {};
-        const vlan = Object.entries(devices).find(([,d]) => d.type === '8021q' && d.name && bridge.ports && bridge.ports.includes(d.name));
+        // bridge.ports is a space-joined UCI option — split before
+        // matching, 'eth1.10'.includes('eth1.1') is a false positive
+        const portSet = (bridge.ports || '').split(/\s+/);
+        const vlan = Object.entries(devices).find(([,d]) => d.type === '8021q' && d.name && portSet.includes(d.name));
         const iface = interfaces[`svc_${name}`] || {};
         result[name] = {
           vlan_id: svc.vlan_id,
