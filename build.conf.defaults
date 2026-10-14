@@ -1,5 +1,14 @@
 OWRT_VERSION=v24.10.5
 STAGENETH_VERSION=0.2.0
 REPO_CHANNEL=dev
+# Target = nom d'un fichier dans config/targets/. Disponibles :
+#   x86_64        — PC/mini-PC/VM générique (GRUB BIOS+EFI)
+#   armsr         — ARM64 générique (QEMU virt, cartes EFI)
+#   nanopi_r4s    — NanoPi R4S  (RK3399,  2x 1GbE)
+#   nanopi_r5s    — NanoPi R5S  (RK3568S, 2x 2.5G + 1G)
+#   nanopi_r6s    — NanoPi R6S  (RK3588S, 2x 2.5G + 1G)
+#   rpi4          — Raspberry Pi 4 (1G onboard + USB NIC)
+#   bpi_r3        — Banana Pi BPI-R3 (4x 1G + 2x SFP)
+#   bpi_r4        — Banana Pi BPI-R4 (4x 1G + 2x SFP+ 10G)
 TARGET=x86_64
 BUILD_SEMVER_SUFFIX=-beta.19

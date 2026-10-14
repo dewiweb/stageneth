@@ -7,6 +7,20 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Cible (nom dans config/targets/)'
+        type: choice
+        default: x86_64
+        options:
+          - x86_64
+          - armsr
+          - nanopi_r4s
+          - nanopi_r5s
+          - nanopi_r6s
+          - rpi4
+          - bpi_r3
+          - bpi_r4
 
 jobs:
   test:
@@ -51,6 +65,7 @@ jobs:
       contents: write
     env:
       RUNTIME: docker
+      TARGET: ${{ inputs.target || 'x86_64' }}
       STAGENETH_BUILD_ROOT: ${{ github.workspace }}/.build
       TMPDIR: /tmp
       XDG_DATA_HOME: ${{ github.workspace }}/.build/xdg
