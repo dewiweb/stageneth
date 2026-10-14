@@ -10,12 +10,38 @@ import (
 	time "time"
 )
 
+// appendFileLines appends at most the last 1000 lines of a log file,
+// reading at most 512 KiB from the tail so a giant log can't be pulled
+// fully into memory per request.
 func appendFileLines(lines []string, path string) []string {
-	if b, err := os.ReadFile(path); err == nil {
-		for _, line := range strings.Split(string(b), "\n") {
-			if line = strings.TrimSpace(line); line != "" {
-				lines = append(lines, line)
-			}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return lines
+	}
+	const maxRead = 512 << 10
+	f, err := os.Open(path)
+	if err != nil {
+		return lines
+	}
+	defer f.Close()
+	start := int64(0)
+	if fi.Size() > maxRead {
+		start = fi.Size() - maxRead
+	}
+	buf := make([]byte, fi.Size()-start)
+	if _, err := f.ReadAt(buf, start); err != nil {
+		return lines
+	}
+	tail := strings.Split(string(buf), "\n")
+	if start > 0 && len(tail) > 0 {
+		tail = tail[1:] // drop partial first line
+	}
+	if len(tail) > 1000 {
+		tail = tail[len(tail)-1000:]
+	}
+	for _, line := range tail {
+		if line = strings.TrimSpace(line); line != "" {
+			lines = append(lines, line)
 		}
 	}
 	return lines
@@ -53,6 +79,9 @@ func logsGet(w http.ResponseWriter, r *http.Request) {
 		if n, err := strconv.Atoi(l); err == nil && n > 0 {
 			limit = n
 		}
+	}
+	if limit > 1000 {
+		limit = 1000
 	}
 	out, err := exec.Command("logread", "-l", "1000").CombinedOutput()
 	if err != nil {
