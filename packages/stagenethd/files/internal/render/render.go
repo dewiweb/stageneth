@@ -61,8 +61,10 @@ func validVlanID(s string) string {
 	return strconv.Itoa(id)
 }
 
-// Trunk returns the configured trunk interface with fallback applied.
-func Trunk(st *stcfg.Config, avail map[string]bool) string {
+// Trunk returns the configured trunk interface. Existence fallback is
+// applied at use sites via fallbackIface — not here, since the raw
+// value is also meaningful (init scripts, status display).
+func Trunk(st *stcfg.Config) string {
 	trunk := st.Globals["trunk"]
 	if trunk == "" {
 		trunk = "eth1"
@@ -119,7 +121,7 @@ func servicePorts(st *stcfg.Config, svcName string, svc map[string]string, trunk
 
 // Network renders managed sections for /etc/config/network.
 func Network(st *stcfg.Config, avail map[string]bool) []ucifile.Section {
-	trunk := Trunk(st, avail)
+	trunk := Trunk(st)
 	vendor := SwitchVendor(st)
 	var out []ucifile.Section
 	for _, svcName := range st.ServiceNames() {
