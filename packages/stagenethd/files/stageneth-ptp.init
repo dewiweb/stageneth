@@ -11,9 +11,11 @@ start_service() {
         return 0
     fi
 
-    local ts
+    local ts trunk
     ts=$(uci get stageneth.globals.ptp_timestamping 2>/dev/null)
     [ "$ts" = "hardware" ] || ts="software"
+    trunk=$(uci get stageneth.globals.trunk 2>/dev/null)
+    [ -n "$trunk" ] || trunk="eth1"
 
     procd_open_instance
     procd_set_param command /usr/sbin/ptp4l -f /etc/stageneth/ptp4l-stage.conf -m
@@ -21,7 +23,7 @@ start_service() {
     for svc in $ptp_services; do
         local vlan
         vlan=$(uci get stageneth."$svc".vlan_id 2>/dev/null)
-        [ -n "$vlan" ] && procd_append_param command -i "eth0.$vlan"
+        [ -n "$vlan" ] && procd_append_param command -i "$trunk.$vlan"
     done
     procd_set_param respawn
     procd_close_instance

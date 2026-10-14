@@ -77,8 +77,11 @@ func main() {
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      120 * time.Second,
-		IdleTimeout:       120 * time.Second,
+		// WriteTimeout covers a response's entire lifetime — any finite
+		// value kills long-lived SSE streams (/api/v1/events). The unix
+		// socket is behind nginx, which enforces its own timeouts.
+		WriteTimeout: 0,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
