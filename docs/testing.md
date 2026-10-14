@@ -10,6 +10,13 @@ cd packages/stagenethd/files && go test -count=1 ./...
 # isolée (aucune dépendance OpenWrt nécessaire) et vérifie le flux
 # complet : wizard → session → ressources v1 → apply → rollback → logout
 tests/e2e/run.sh
+
+# E2E HTTPS : la pile complète docker nginx:alpine → socket unix → API,
+# avec les fichiers *.locations RÉELS du paquet (SSI, CSP, redirection
+# HTTP→HTTPS, refus API en clair, SSE non bufferisé). Vérifie aussi
+# l'authentification, les rôles et une trame SSE effective.
+# Requiert docker ; KEEP=1 conserve l'environnement lancé.
+tests/e2e-https/run.sh
 ```
 
 Le harnais E2E utilise les variables `STAGENETH_CONFIG_DIR`,
