@@ -376,8 +376,14 @@ func (e *Engine) lastGoodDir() string {
 
 // SaveLastGood persists a snapshot under <manifest dir>/last-good so the
 // last working configuration survives process exit — the console escape
-// hatch after an apply that severs management access.
+// hatch after an apply that severs management access. Serialized with
+// Apply/Rollback so concurrent applies can't interleave with the write.
 func (e *Engine) SaveLastGood(s *Snapshot) error {
+	lk, err := e.lock()
+	if err != nil {
+		return fmt.Errorf("apply lock: %w", err)
+	}
+	defer lk.Close()
 	dir := e.lastGoodDir()
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -407,8 +413,14 @@ func (e *Engine) SaveLastGood(s *Snapshot) error {
 }
 
 // Rollback restores the persisted last-good snapshot. Returns the live
-// paths that were rewritten.
+// paths that were rewritten. Serialized with Apply: a rollback racing
+// an in-flight apply would interleave file writes.
 func (e *Engine) Rollback() ([]string, error) {
+	lk, err := e.lock()
+	if err != nil {
+		return nil, fmt.Errorf("apply lock: %w", err)
+	}
+	defer lk.Close()
 	dir := e.lastGoodDir()
 	jb, err := os.ReadFile(filepath.Join(dir, "index.json"))
 	if err != nil {
