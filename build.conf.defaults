@@ -1,5 +1,5 @@
 OWRT_VERSION=v24.10.5
-STAGENETH_VERSION=0.2.0
+STAGENETH_VERSION=0.3.0
 REPO_CHANNEL=dev
 # Target = nom d'un fichier dans config/targets/. Disponibles :
 #   x86_64        — PC/mini-PC/VM générique (GRUB BIOS+EFI)

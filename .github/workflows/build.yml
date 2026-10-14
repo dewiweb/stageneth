@@ -149,11 +149,55 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # OS images under targets/, plus the .ipk packages (they
-          # install on any stock OpenWrt router of matching arch —
-          # see docs/build.md "Routeurs OpenWrt existants")
-          files: |
-            bin/targets/*/*/*
-            bin/packages/**/*.ipk
+          files: bin/targets/*/*/*
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+
+  # .ipk packages via the OpenWrt SDK — minutes per family instead of a
+  # full buildroot. One SDK covers every device of its target/subtarget;
+  # the matrix below spans all 18 entries in config/targets/.
+  ipks:
+    needs: test
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # name: artifact-safe label (no '/'); sdk: OpenWrt target/subtarget
+        include:
+          - { name: x86-64,            sdk: x86/64 }
+          - { name: armsr-armv8,       sdk: armsr/armv8 }
+          - { name: rockchip-armv8,    sdk: rockchip/armv8 }
+          - { name: bcm27xx-bcm2711,   sdk: bcm27xx/bcm2711 }
+          - { name: mediatek-filogic,  sdk: mediatek/filogic }
+          - { name: mediatek-mt7622,   sdk: mediatek/mt7622 }
+          - { name: qualcommax-ipq807x, sdk: qualcommax/ipq807x }
+          - { name: mvebu-cortexa72,   sdk: mvebu/cortexa72 }
+          - { name: ramips-mt7621,     sdk: ramips/mt7621 }
+          - { name: realtek-rtl839x,   sdk: realtek/rtl839x }
+          - { name: realtek-rtl930x,   sdk: realtek/rtl930x }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: packages/stagenethd/files/go.sum
+
+      - name: Build StageNeth packages
+        run: ./builder/build-ipks.sh "${{ matrix.sdk }}" "${OWRT_VERSION:-v24.10.5}" ./ipk-out
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stageneth-ipks-${{ github.ref_name }}-${{ matrix.name }}
+          path: ipk-out/*.ipk
+          if-no-files-found: error
+
+      - name: Attach packages to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ipk-out/*.ipk

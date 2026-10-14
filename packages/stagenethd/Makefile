@@ -21,11 +21,14 @@ define Package/stagenethd
 	DEPENDS:=+firewall4 +ethtool +tcpdump +snmpd +rsyslog +umdns +mdns-repeater +linuxptp +nginx-ssl +ip-bridge +mdnsresponder
 endef
 
+# We render /etc/rsyslog.conf at runtime but the FILE belongs to the
+# rsyslog package — claiming it as our conffile makes opkg see two
+# owners of the same file (conflict on install/upgrade). Its
+# persistence across upgrades is rsyslog's own conffile business.
 define Package/stagenethd/conffiles
 /etc/config/stageneth
 /etc/config/stagenethd
 /etc/stageneth/
-/etc/rsyslog.conf
 endef
 
 define Package/stagenethd/description
@@ -64,9 +67,13 @@ ifeq ($(ARCH),riscv64)
 GO_ARCH:=riscv64
 endif
 # No silent amd64 fallback — an unmapped target would ship a
-# wrong-arch binary that looks like a successful build.
+# wrong-arch binary that looks like a successful build. ARCH is empty
+# during the SDK/buildroot metadata dump phase; only fail when ARCH is
+# set (a real compile context) but unmapped.
 ifeq ($(GO_ARCH),)
+ifneq ($(ARCH),)
 $(error stagenethd: no Go arch mapping for OpenWrt ARCH=$(ARCH))
+endif
 endif
 
 define Build/Prepare

@@ -75,13 +75,49 @@ pour une nouvelle cible.
 Les paquets `stagenethd` / `stageneth-ui` ne dépendent que de paquets des
 feeds officiels (`firewall4`, `nginx-ssl`, `linuxptp`, `umdns`,
 `mdns-repeater`, `snmpd`, `rsyslog`, `ethtool`, `ip-bridge`,
-`mdnsresponder`, `tcpdump`). Le build produit les `.ipk` dans
-`bin/packages/<arch>/` : ils s'installent donc sur **n'importe quel
+`mdnsresponder`, `tcpdump`). Ils s'installent donc sur **n'importe quel
 routeur supporté par OpenWrt 24.10** de la même architecture, sans image
-dédiée :
+dédiée.
+
+### Construire les .ipk (SDK — quelques minutes)
+
+Le build complet produit les `.ipk` dans `bin/packages/<arch>/`, mais il
+existe un chemin beaucoup plus rapide : `builder/build-ipks.sh` utilise
+le **SDK OpenWrt** officiel (toolchain précompilée) et ne compile que nos
+deux paquets :
 
 ```bash
-opkg update && opkg install ./stagenethd_*.ipk ./stageneth-ui_*.ipk
+# un SDK par famille target/subtarget — couvre tous les devices de la famille
+./builder/build-ipks.sh mediatek/filogic v24.10.5 ./ipk-out
+# → stagenethd_0.3.0-r1_aarch64_cortex-a53.ipk + stageneth-ui_0.3.0-r1_all.ipk
+```
+
+Le `.ipk` porte l'étiquette d'**architecture** (`aarch64_cortex-a53`,
+`mipsel_24kc`, `x86_64`, `all` pour l'UI) : un même `.ipk` s'installe sur
+tous les devices de cette arch — `mediatek/filogic` couvre BPI-R3/R4,
+GL-MT6000/MT3000, AX3000T, etc. Familles des cibles `config/targets/` :
+`x86/64`, `armsr/armv8`, `rockchip/armv8`, `bcm27xx/bcm2711`,
+`mediatek/filogic`, `mediatek/mt7622`, `qualcommax/ipq807x`,
+`mvebu/cortexa72`, `ramips/mt7621`, `realtek/rtl839x`, `realtek/rtl930x`.
+
+En CI, le job `ipks` (tags `v*` et `workflow_dispatch`) exécute cette
+matrice complète et attache les `.ipk` à la release.
+
+### Installer sur un OpenWrt 24.10 existant
+
+```bash
+# 1. récupérer les .ipk de la bonne arch (release GitHub ou build local)
+#    'opkg print-architecture' sur le routeur donne l'arch attendue
+scp stagenethd_*.ipk stageneth-ui_*.ipk root@<routeur>:/tmp/
+
+# 2. uhttpd occupe 80/443 — le libérer AVANT de démarrer nginx
+ssh root@<routeur>
+/etc/init.d/uhttpd disable && /etc/init.d/uhttpd stop
+
+# 3. installer — les dépendances viennent des feeds officiels
+opkg update && opkg install /tmp/stagenethd_*.ipk /tmp/stageneth-ui_*.ipk
+
+# 4. navigateur → https://<ip-routeur>/ → wizard de premier démarrage
 ```
 
 Mises en garde :
