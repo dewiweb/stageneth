@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 )
 
 // ConfigDir is the root directory holding UCI files (normally
@@ -89,7 +90,7 @@ func Parse(data string) *File {
 		}
 		switch fields[0] {
 		case "config":
-			if len(fields) < 2 {
+			if len(fields) < 2 || fields[1] == "" {
 				continue
 			}
 			s := Section{Type: fields[1]}
@@ -99,11 +100,11 @@ func Parse(data string) *File {
 			f.Sections = append(f.Sections, s)
 			cur = &f.Sections[len(f.Sections)-1]
 		case "option":
-			if cur != nil && len(fields) >= 3 {
+			if cur != nil && len(fields) >= 3 && fields[1] != "" {
 				cur.Options = append(cur.Options, Option{Name: fields[1], Value: fields[2]})
 			}
 		case "list":
-			if cur != nil && len(fields) >= 3 {
+			if cur != nil && len(fields) >= 3 && fields[1] != "" {
 				cur.Options = append(cur.Options, Option{Name: fields[1], Value: fields[2], List: true})
 			}
 		}
@@ -165,9 +166,18 @@ func (f *File) Get(name string) *Section {
 	return nil
 }
 
-// quote renders a value for emission. UCI values are single-line —
-// embedded newlines/carriage returns are replaced so a hostile value
-// can never break out of its line and inject directives.
+// unsafeIdent reports whether a bare token would not survive reparse:
+// whitespace, quotes, or control characters require quoting.
+func unsafeIdent(s string) bool {
+	return strings.ContainsAny(s, "'\"") || strings.IndexFunc(s, unicode.IsSpace) >= 0 ||
+		strings.IndexFunc(s, unicode.IsControl) >= 0
+}
+
+// quote renders a value for emission using the shell 'x'"'"'y' idiom —
+// adjacent quoted segments glue into one token under both our parser
+// and real uci, so values containing either quote kind round-trip
+// losslessly. UCI values are single-line: \n and \r are replaced so a
+// hostile value can never break out of its line and inject directives.
 func quote(v string) string {
 	v = strings.Map(func(r rune) rune {
 		if r == '\n' || r == '\r' {
@@ -175,10 +185,7 @@ func quote(v string) string {
 		}
 		return r
 	}, v)
-	if strings.Contains(v, "'") {
-		return `"` + strings.ReplaceAll(v, `"`, `\"`) + `"`
-	}
-	return "'" + v + "'"
+	return "'" + strings.ReplaceAll(v, "'", `'"'"'`) + "'"
 }
 
 // Text renders the file back to UCI config syntax.
@@ -186,17 +193,33 @@ func (f *File) Text() string {
 	var b strings.Builder
 	for i := range f.Sections {
 		s := &f.Sections[i]
+		if s.Type == "" {
+			continue // unemittable — would produce an unparseable line
+		}
+		// type is emitted bare like real uci unless it carries chars that
+		// would split into multiple tokens or vanish on reparse
+		typeTok := s.Type
+		if unsafeIdent(typeTok) {
+			typeTok = quote(typeTok)
+		}
 		if s.Name != "" {
-			fmt.Fprintf(&b, "config %s %s\n", s.Type, quote(s.Name))
+			fmt.Fprintf(&b, "config %s %s\n", typeTok, quote(s.Name))
 		} else {
-			fmt.Fprintf(&b, "config %s\n", s.Type)
+			fmt.Fprintf(&b, "config %s\n", typeTok)
 		}
 		for _, o := range s.Options {
+			if o.Name == "" {
+				continue // unemittable
+			}
+			name := o.Name
+			if unsafeIdent(name) {
+				name = quote(name)
+			}
 			kw := "option"
 			if o.List {
 				kw = "list"
 			}
-			fmt.Fprintf(&b, "\t%s %s %s\n", kw, o.Name, quote(o.Value))
+			fmt.Fprintf(&b, "\t%s %s %s\n", kw, name, quote(o.Value))
 		}
 		b.WriteByte('\n')
 	}

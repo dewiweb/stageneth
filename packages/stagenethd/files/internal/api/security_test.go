@@ -212,3 +212,21 @@ func TestParseLogTime(t *testing.T) {
 		t.Error("empty line parsed")
 	}
 }
+
+// Fuzz parsers that consume untrusted-ish input — uci show output,
+// mDNS zone text (network-derived), syslog lines. Panic-freedom is the
+// property under test.
+func FuzzParseUciShow(f *testing.F) {
+	f.Add("network.lan=interface\nnetwork.lan.ipaddr='192.168.1.1'\n")
+	f.Add("a.b.c='x'\n\nweird==line\nx.y")
+	f.Fuzz(func(t *testing.T, in string) {
+		parseUciShow(in)
+	})
+}
+
+func FuzzMdnsParseZone(f *testing.F) {
+	f.Add("Name._dante._tcp.local SRV 0 0 5000 host.local.\nhost.local. A 10.0.0.1\n")
+	f.Fuzz(func(t *testing.T, in string) {
+		mdnsParseZone([]byte(in), "_dante._tcp", "local")
+	})
+}

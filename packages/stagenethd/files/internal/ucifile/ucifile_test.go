@@ -51,12 +51,15 @@ func TestQuoteEdgeCases(t *testing.T) {
 		{Name: "plain", Value: "abc"},
 		{Name: "spaces", Value: "a b c"},
 		{Name: "sq", Value: "it's"},
+		{Name: "dq", Value: `say "hi"`},
+		{Name: "both", Value: `it's "quoted"`},
 		{Name: "empty", Value: ""},
 	}}
 	f := &File{Sections: []Section{s}}
 	f2 := Parse(f.Text())
 	s2 := f2.Sections[0]
-	if s2.Get("plain") != "abc" || s2.Get("spaces") != "a b c" || s2.Get("sq") != "it's" || s2.Get("empty") != "" {
+	if s2.Get("plain") != "abc" || s2.Get("spaces") != "a b c" || s2.Get("sq") != "it's" ||
+		s2.Get("dq") != `say "hi"` || s2.Get("both") != `it's "quoted"` || s2.Get("empty") != "" {
 		t.Errorf("round-trip values wrong:\n%s", f.Text())
 	}
 }
@@ -75,4 +78,20 @@ func TestGetSet(t *testing.T) {
 	if idx := f.Index("lan"); idx != 0 {
 		t.Error("index failed")
 	}
+}
+
+// FuzzRoundTrip: for arbitrary input bytes, the parse→emit→parse cycle
+// must converge (second emit identical to first) and never panic.
+func FuzzRoundTrip(f *testing.F) {
+	f.Add("config interface 'lan'\n\toption ipaddr '192.168.1.1'\n")
+	f.Add("config device\n\toption name 'br-x'\n\tlist ports 'eth0'\n")
+	f.Add("config x 'a'b\"c'\n\toption k 'v' # trailing\n")
+	f.Add("\x00\x01\xff'\"\n\toption")
+	f.Fuzz(func(t *testing.T, in string) {
+		once := Parse(in).Text()
+		twice := Parse(once).Text()
+		if once != twice {
+			t.Fatalf("emit not stable:\nin=%q\nonce=%q\ntwice=%q", in, once, twice)
+		}
+	})
 }

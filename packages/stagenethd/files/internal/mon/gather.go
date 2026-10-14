@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -377,9 +378,11 @@ var sysfsCounters = []string{
 // parseNicStats reads interface error counters from sysfs. Replaces the
 // old `ethtool -S` subprocess sweep — sysfs is the kernel source ethtool
 // reports for the generic counter set anyway.
-func parseNicStats() map[string]interface{} {
+func parseNicStats() map[string]interface{} { return nicStatsIn("/sys/class/net") }
+
+func nicStatsIn(sysfs string) map[string]interface{} {
 	out := map[string]interface{}{}
-	entries, err := os.ReadDir("/sys/class/net")
+	entries, err := os.ReadDir(sysfs)
 	if err != nil {
 		return out
 	}
@@ -392,7 +395,7 @@ func parseNicStats() map[string]interface{} {
 		}
 		stats := map[string]interface{}{}
 		for _, c := range sysfsCounters {
-			p := "/sys/class/net/" + name + "/statistics/" + c
+			p := filepath.Join(sysfs, name, "statistics", c)
 			if b, err := os.ReadFile(p); err == nil {
 				if v, err := strconv.ParseUint(strings.TrimSpace(string(b)), 10, 64); err == nil {
 					stats[c] = v

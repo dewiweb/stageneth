@@ -1,6 +1,10 @@
 package mon
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestParseMdbOutput(t *testing.T) {
 	out := `dev br_dante port eth1.20 grp 239.69.10.1 temp vid 20
@@ -54,5 +58,46 @@ func TestParseIGMPSample(t *testing.T) {
 		if name == "" || (v != true && v != false) {
 			t.Errorf("bad entry %q=%v", name, v)
 		}
+	}
+}
+
+func TestNicStatsIn(t *testing.T) {
+	root := t.TempDir()
+	mk := func(iface, counter, val string) {
+		d := filepath.Join(root, iface, "statistics")
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(d, counter), []byte(val+"\n"), 0644)
+	}
+	mk("eth0", "rx_errors", "3")
+	mk("eth0", "tx_dropped", "7")
+	mk("eth0", "collisions", "notanumber") // unparsable → skipped
+	mk("eth1.20", "rx_errors", "9")        // vlan iface → filtered
+	mk("lo", "rx_errors", "1")             // loopback → filtered
+	mk("veth0", "rx_errors", "1")          // veth → filtered
+
+	m := nicStatsIn(root)
+	if len(m) != 1 {
+		t.Fatalf("got %v", m)
+	}
+	st, ok := m["eth0"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("eth0 stats = %v", m["eth0"])
+	}
+	if st["rx_errors"] != uint64(3) || st["tx_dropped"] != uint64(7) {
+		t.Errorf("stats = %v", st)
+	}
+	if _, ok := st["collisions"]; ok {
+		t.Error("unparsable counter should be skipped")
+	}
+	if _, ok := m["eth1.20"]; ok {
+		t.Error("vlan interface should be filtered")
+	}
+	if _, ok := m["lo"]; ok {
+		t.Error("loopback should be filtered")
+	}
+	if got := nicStatsIn(filepath.Join(root, "nonexistent")); len(got) != 0 {
+		t.Error("missing dir should return empty map")
 	}
 }

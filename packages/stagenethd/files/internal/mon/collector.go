@@ -26,6 +26,7 @@ type Collector struct {
 	// (prevIdle/prevTot/slowData) outside the data mutex, and both the
 	// Run goroutine and handler fallbacks can trigger it concurrently
 	collectMu sync.Mutex
+	stopOnce  sync.Once
 }
 
 func NewCollector(interval, slow time.Duration) *Collector {
@@ -87,7 +88,8 @@ func (c *Collector) Run() {
 	}
 }
 
-func (c *Collector) Stop() { close(c.stopCh) }
+// Stop is idempotent — safe to call from multiple shutdown paths.
+func (c *Collector) Stop() { c.stopOnce.Do(func() { close(c.stopCh) }) }
 
 func (c *Collector) collect() map[string]interface{} {
 	l1, l5, l15 := loadAvgs()
