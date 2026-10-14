@@ -10,7 +10,7 @@
               <summary class="p-3 font-semibold cursor-pointer select-none flex justify-between items-center text-red-600 dark:text-red-400">Alertes d'intrusion ({{ alerts.length }})<i class="fas fa-chevron-down text-slate-400"></i></summary>
               <div class="p-4 pt-0 border-t border-slate-200 dark:border-slate-700">
                 <div class="space-y-2">
-                  <div v-for="alert in alerts" :key="alert.time+'_'+alert.message" class="p-2 rounded text-sm" :class="alert.severity==='error' ? 'bg-red-50 dark:bg-red-900 text-red-800 dark:text-red-100' : alert.severity==='warning' ? 'bg-yellow-50 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100' : 'bg-blue-50 dark:bg-blue-900 text-blue-800 dark:text-blue-100'">
+                  <div v-for="(alert, aidx) in alerts" :key="aidx" class="p-2 rounded text-sm" :class="alert.severity==='error' ? 'bg-red-50 dark:bg-red-900 text-red-800 dark:text-red-100' : alert.severity==='warning' ? 'bg-yellow-50 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-100' : 'bg-blue-50 dark:bg-blue-900 text-blue-800 dark:text-blue-100'">
                     <p class="font-mono text-xs text-slate-500 dark:text-slate-400">{{ new Date(alert.time).toLocaleString() }} · {{ alert.category }}</p>
                     <p>{{ alert.message }}</p>
                   </div>
@@ -28,7 +28,7 @@
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
                 <p class="text-sm text-slate-500 dark:text-slate-400">Charge</p>
-                <p class="text-2xl font-semibold">{{ monitoring.load ?? '-' }}</p>
+                <p class="text-2xl font-semibold">{{ monitoring.load != null ? Number(monitoring.load).toFixed(2) : '-' }}</p>
               </div>
               <div class="bg-white dark:bg-slate-800 p-4 rounded shadow">
                 <p class="text-sm text-slate-500 dark:text-slate-400">Disponibilité</p>

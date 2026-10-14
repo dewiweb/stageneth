@@ -4,8 +4,10 @@ const { createApp } = Vue;
 createApp({
   data() {
     return {
-      token: localStorage.getItem('stageneth_token_v2') || '',
-      username: 'root',
+      token: '', // truthy marker for "session active" — auth is a cookie now
+      sessionUser: '',
+      sessionRole: '',
+      username: 'admin',
       password: '',
       error: '',
       message: '',
@@ -63,6 +65,8 @@ createApp({
       monitoring: {},
       monitoringHistory: { cpu: [], memory: [] },
       monitoringTimeout: null,
+      monitoringPolling: false,
+      evtSource: null,
       alerts: [],
       alertsTimeout: null,
       snmpQuery: { host: '', port: 161, community: 'public', oid: '1.3.6.1.2.1.1.1.0', version: 'v2c', username: '', authProtocol: 'MD5', authPass: '', privProtocol: 'DES', privPass: '', securityLevel: 'AuthNoPriv' },
@@ -109,6 +113,7 @@ createApp({
       wan: { ipaddr: '', netmask: '', gateway: '', proto: 'dhcp', device: '', macaddr: '' },
       system: { hostname: '' },
       logging: { enabled: '0', host: '', port: '514', protocol: 'udp' },
+      collector: { enabled: '0', port: '514', protocol: 'udp', dir: '/var/log/remote' },
       availableInterfaces: [],
       presets: [],
       selectedPreset: '',
@@ -178,6 +183,7 @@ createApp({
     firewallZones() { return this.filterType('firewall', 'zone'); },
     firewallForwardings() { return this.filterType('firewall', 'forwarding'); },
     firewallRules() { return this.filterType('firewall', 'rule'); },
+    showLock() { return (this.uci.stageneth?.values?.globals?.show_lock) === '1'; },
     servicesCount() { return Object.keys(this.services || {}).length; },
     leasesCount() { return (this.monitoring.dhcp_leases || []).length; },
     activePresetCategory() {
@@ -206,8 +212,10 @@ createApp({
       return tips[this.switchVendor] || tips.generic;
     },
     visibleTabGroups() {
-      if (!this.simpleMode) return this.tabGroups;
-      return [
+      // operator role: read + apply only — the server enforces this too,
+      // so hiding tabs is UX, not a security boundary.
+      const operatorTabs = ['simple', 'services', 'ntp', 'credentials', 'monitoring', 'logs'];
+      const groups = this.simpleMode ? [
         { label: 'Dashboard', tabs: [
           { key: 'simple', label: 'Tableau de bord', icon: 'fas fa-tachometer-alt' }
         ]},
@@ -215,7 +223,13 @@ createApp({
           { key: 'monitoring', label: 'Supervision', icon: 'fas fa-chart-line' },
           { key: 'logs', label: 'Journaux', icon: 'fas fa-scroll' }
         ]}
-      ];
+      ] : this.tabGroups;
+      if (this.sessionRole === 'operator') {
+        return groups
+          .map(g => ({ ...g, tabs: g.tabs.filter(t => operatorTabs.includes(t.key)) }))
+          .filter(g => g.tabs.length > 0);
+      }
+      return groups;
     },
     visibleTabs() { return this.visibleTabGroups.flatMap(g => g.tabs).map(t => t.key); },
     ptpStateClass() {
@@ -277,8 +291,8 @@ createApp({
       if (this.hasPendingChanges) {
         alerts.push({ type: 'warning', message: 'Modifications en attente : cliquez sur Enregistrer & Appliquer pour les appliquer.', icon: 'fas fa-exclamation-circle' });
       }
-      const ntpRunning = String(this.ntp?.running || '0') === '1';
-      const ntpServer = String(this.ntp?.enable_server || '0') === '1';
+      const ntpRunning = this.ntp?.running === true;
+      const ntpServer = this.ntp?.enable_server === true;
       if (ntpServer && !ntpRunning) {
         alerts.push({ type: 'error', message: 'Le serveur NTP est activé mais n\'est pas en cours d\'exécution.', icon: 'fas fa-clock' });
       }
@@ -333,6 +347,7 @@ createApp({
     else document.documentElement.classList.remove('dark');
     await this.checkFirstboot();
     if (this.showWizard) return;
+    await this.checkSession();
     if (this.token) {
       await this.refresh();
       this.switchVendor = (this.uci.stageneth?.values?.globals?.switch_vendor) || 'generic';
@@ -366,11 +381,22 @@ createApp({
       const values = this.uci[config]?.values || {};
       return Object.fromEntries(Object.entries(values).filter(([_, v]) => v && v['.type'] === type));
     },
+    async checkSession() {
+      try {
+        const res = await api('/api/v1/session', 'GET');
+        if (res.data && res.data.authenticated) {
+          this.token = 'session';
+          this.sessionUser = res.data.user || '';
+          this.sessionRole = res.data.role || '';
+        }
+      } catch (e) {}
+    },
     async login() {
       try {
-        const res = await api('/api/login', 'POST', { username: this.username, password: this.password });
-        this.token = res.data.token;
-        localStorage.setItem('stageneth_token_v2', this.token);
+        const res = await api('/api/v1/session', 'POST', { username: this.username, password: this.password });
+        this.token = 'session';
+        this.sessionUser = res.data.user || this.username;
+        this.sessionRole = res.data.role || '';
         this.error = '';
         await this.refresh();
         this.startMonitoring();
@@ -379,14 +405,23 @@ createApp({
         this.error = e.message;
       }
     },
-    logout() {
+    async logout() {
+      try { await api('/api/v1/session', 'DELETE'); } catch (e) {}
       this.stopMonitoring();
+      this.stopLogs();
+      this.stopNtpTime();
+      this.monitoring = {};
+      this.monitoringHistory = { cpu: [], memory: [] };
+      this.alerts = [];
+      this.pingResult = {};
+      this.hasPendingChanges = false;
       this.token = '';
-      localStorage.removeItem('stageneth_token_v2');
+      this.sessionUser = '';
+      this.sessionRole = '';
     },
     async checkFirstboot() {
       try {
-        const res = await api('/api/firstboot', 'GET');
+        const res = await api('/api/v1/firstboot', 'GET');
         if (res.data && !res.data.firstboot_done) {
           this.showWizard = true;
           this.wizardPresets = res.data.presets || [];
@@ -396,7 +431,7 @@ createApp({
     },
     nextWizardStep() {
       this.error = '';
-      if (this.wizardPassword.length < 4) { this.error = 'Mot de passe trop court'; return; }
+      if (this.wizardPassword.length < 8) { this.error = 'Mot de passe trop court'; return; }
       if (this.wizardPassword !== this.wizardConfirmPassword) { this.error = 'Les mots de passe ne correspondent pas'; return; }
       this.wizardStep = 2;
     },
@@ -404,9 +439,10 @@ createApp({
       this.error = '';
       try {
         this.isLoading = true;
-        const res = await api('/api/wizard', 'POST', { password: this.wizardPassword, preset: this.wizardPreset });
-        this.token = res.data.token;
-        localStorage.setItem('stageneth_token_v2', this.token);
+        const res = await api('/api/v1/wizard', 'POST', { password: this.wizardPassword, preset: this.wizardPreset });
+        this.token = 'session';
+        this.sessionUser = res.data.user || 'admin';
+        this.sessionRole = res.data.role || 'tech';
         this.showWizard = false;
         this.wizardStep = 1;
         this.wizardPassword = '';
@@ -420,11 +456,22 @@ createApp({
         this.isLoading = false;
       }
     },
+    // reshape /api/v1/state into the {section: {opts, .type}} map the
+    // rest of the UI consumes from the old uciGet response.
+    stateToUci(st) {
+      const out = {};
+      const put = (name, type, opts) => { out[name] = { ...(opts || {}), '.type': type }; };
+      put('globals', 'stageneth', st.globals);
+      for (const [n, o] of Object.entries(st.services || {})) put(n, 'service', o);
+      for (const [n, o] of Object.entries(st.bindings || {})) put(n, 'binding', o);
+      for (const [n, o] of Object.entries(st.forwardings || {})) put(n, 'forwarding', o);
+      for (const [n, o] of Object.entries(st.logging || {})) put(n, 'logging', o);
+      return out;
+    },
     async resetWizard() {
       if (!confirm('Relancer le wizard ? Cela déconnectera et réinitialisera le flag firstboot.')) return;
       try {
-        await this.uciSet('stageneth', 'globals', 'stageneth', { firstboot_done: '0' });
-        await this.uciCommit('stageneth');
+        await api('/api/v1/firstboot/reset', 'POST');
         this.logout();
         this.showWizard = true;
         this.wizardStep = 1;
@@ -433,12 +480,15 @@ createApp({
       }
     },
     async skipWizard() {
-      if (!confirm('Ignorer le wizard ? Le mot de passe root restera inchangé et aucun preset ne sera appliqué.')) return;
+      if (this.wizardPassword.length < 8) { this.error = 'Mot de passe trop court'; return; }
+      if (this.wizardPassword !== this.wizardConfirmPassword) { this.error = 'Les mots de passe ne correspondent pas'; return; }
+      if (!confirm('Ignorer le wizard ? Aucun preset ne sera appliqué.')) return;
       try {
         this.isLoading = true;
-        const res = await api('/api/wizard-skip', 'POST', {});
-        this.token = res.data.token;
-        localStorage.setItem('stageneth_token_v2', this.token);
+        const res = await api('/api/v1/wizard-skip', 'POST', { password: this.wizardPassword });
+        this.token = 'session';
+        this.sessionUser = res.data.user || 'admin';
+        this.sessionRole = res.data.role || 'tech';
         this.showWizard = false;
         await this.refresh();
         this.startMonitoring();
@@ -449,18 +499,20 @@ createApp({
         this.isLoading = false;
       }
     },
-    async ubus(path, method, payload = {}) {
-      return api('/api/ubus/call', 'POST', { path, method, payload });
-    },
+    // rawSet writes one UCI section via the allowlisted raw endpoint
+    // (server commits automatically). Expert mode only.
     async uciSet(config, section, type, values) {
-      return api('/api/uci/set', 'POST', { config, section, type, values });
+      return api('/api/v1/raw/' + config, 'PUT', { section, type, values });
     },
-    async uciCommit(config) {
-      return api('/api/uci/commit', 'POST', { config });
+    async uciDelete(config, section) {
+      return api('/api/v1/raw/' + config + '?section=' + encodeURIComponent(section), 'DELETE');
+    },
+    async uciGet(config) {
+      return api('/api/v1/raw/' + config, 'GET');
     },
     async backupConfig() {
       try {
-        const res = await api('/api/backup', 'GET');
+        const res = await api('/api/v1/backup', 'GET');
         const text = res.data?.data || '';
         const blob = new Blob([text], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -476,7 +528,7 @@ createApp({
       try {
         const text = this.$refs.restoreText?.value || '';
         if (!text) return this.toast('Collez une sauvegarde avant', 'warning');
-        const res = await api('/api/restore', 'POST', { data: text });
+        const res = await api('/api/v1/restore', 'POST', { data: text });
         this.toast(res.message, 'success');
         await this.refresh();
       } catch (e) { this.toast('Restauration échouée : ' + e.message, 'error'); }
@@ -484,12 +536,12 @@ createApp({
     async pingService(name) {
       const ip = (this.serviceNetworks[name] || {}).ip;
       if (!ip) return;
-      this.$set(this.pingResult, name, { loading: true });
+      this.pingResult[name] = { loading: true };
       try {
-        const res = await api('/api/ping?ip=' + encodeURIComponent(ip), 'GET');
-        this.$set(this.pingResult, name, { ok: res.data?.ok, output: res.data?.output, loading: false });
+        const res = await api('/api/v1/ping?ip=' + encodeURIComponent(ip), 'GET');
+        this.pingResult[name] = { ok: res.data?.ok, output: res.data?.output, loading: false };
       } catch (e) {
-        this.$set(this.pingResult, name, { ok: false, output: e.message, loading: false });
+        this.pingResult[name] = { ok: false, output: e.message, loading: false };
       }
     },
     igmpGroupName(ip) {
@@ -517,8 +569,12 @@ createApp({
     async refresh() {
       this.isLoading = true;
       try {
-        for (const config of ['stageneth', 'network', 'dhcp', 'firewall', 'system']) {
-          const res = await api('/api/uci/get', 'POST', { config });
+        {
+          const res = await api('/api/v1/state', 'GET');
+          this.uci.stageneth = { values: this.stateToUci(res.data || {}) };
+        }
+        for (const config of ['network', 'dhcp', 'firewall', 'system']) {
+          const res = await this.uciGet(config);
           this.uci[config] = res.data || {};
         }
         const values = this.uci.system?.values || {};
@@ -529,6 +585,11 @@ createApp({
         this.logging.host = remote.host || '';
         this.logging.port = remote.port || '514';
         this.logging.protocol = remote.protocol || 'udp';
+        const collector = (this.uci.stageneth.values || {}).collector || {};
+        this.collector.enabled = collector.enabled || '0';
+        this.collector.port = collector.port || '514';
+        this.collector.protocol = collector.protocol || 'udp';
+        this.collector.dir = collector.dir || '/var/log/remote';
         this.toast('Données actualisées', 'success');
       } catch (e) {
         this.toast("Échec de l'actualisation : " + e.message, 'error');
@@ -539,14 +600,20 @@ createApp({
     async saveLogging() {
       this.isLoading = true;
       try {
-        await this.uciSet('stageneth', 'remote', 'logging', {
+        await api('/api/v1/logging/remote', 'PUT', {
           enabled: this.logging.enabled,
           host: this.logging.host,
           port: this.logging.port,
           protocol: this.logging.protocol
         });
-        await this.uciCommit('stageneth');
-        this.toast('Configuration syslog enregistrée', 'success');
+        await api('/api/v1/logging/collector', 'PUT', {
+          enabled: this.collector.enabled,
+          port: this.collector.port,
+          protocol: this.collector.protocol,
+          dir: this.collector.dir
+        });
+        this.hasPendingChanges = true;
+        this.toast('Configuration syslog enregistrée — appliquez pour activer', 'success');
         await this.refresh();
       } catch (e) {
         this.toast("Échec de l'enregistrement : " + e.message, 'error');
@@ -558,7 +625,6 @@ createApp({
       this.isLoading = true;
       try {
         await this.uciSet('system', '@system[0]', 'system', { hostname: this.system.hostname });
-        await this.uciCommit('system');
         this.toast('Paramètres système enregistrés', 'success');
         await this.refresh();
       } catch (e) {
@@ -567,12 +633,24 @@ createApp({
         this.isLoading = false;
       }
     },
+    v1PathForType(type) {
+      return { service: 'services', binding: 'bindings', forwarding: 'forwardings' }[type] || null;
+    },
     async removeUci(config, section) {
       if (!confirm('Confirmer la suppression de ' + section + ' ?')) return;
       this.isLoading = true;
       try {
-        await this.uciSet(config, section, '', {});
-        await this.uciCommit(config);
+        if (config === 'stageneth') {
+          const type = this.uci.stageneth?.values?.[section]?.['.type'];
+          const path = this.v1PathForType(type);
+          if (path) {
+            await api('/api/v1/' + path + '/' + section, 'DELETE');
+          } else {
+            throw new Error('Type de section inconnu : ' + type);
+          }
+        } else {
+          await this.uciDelete(config, section);
+        }
         this.hasPendingChanges = true;
         await this.refresh();
       } catch (e) {
@@ -584,8 +662,13 @@ createApp({
     async addUci(config, section, type, values, reset) {
       this.isLoading = true;
       try {
-        await this.uciSet(config, section, type, values);
-        await this.uciCommit(config);
+        if (config === 'stageneth') {
+          const path = this.v1PathForType(type);
+          if (!path) throw new Error('Type de section inconnu : ' + type);
+          await api('/api/v1/' + path + '/' + section, 'PUT', values);
+        } else {
+          await this.uciSet(config, section, type, values);
+        }
         this.hasPendingChanges = true;
         Object.assign(this, reset);
         await this.refresh();
@@ -686,42 +769,77 @@ createApp({
         { newHost: { name: '', mac: '', ip: '', dns: '1' }, editing: { type: '', name: '' } });
     },
     startMonitoring() {
+      if (this.monitoringPolling) return;
+      this.monitoringPolling = true;
       this.fetchMonitoring();
-      this.fetchAlerts();
+      this.startEvents();
+      this.pollAlerts();
     },
     stopMonitoring() {
+      this.monitoringPolling = false;
       if (this.monitoringTimeout) { clearTimeout(this.monitoringTimeout); this.monitoringTimeout = null; }
       if (this.alertsTimeout) { clearTimeout(this.alertsTimeout); this.alertsTimeout = null; }
+      if (this.evtSource) { this.evtSource.close(); this.evtSource = null; }
+    },
+    startEvents() {
+      if (this.evtSource) return;
+      if (!window.EventSource) { this.pollMonitoring(); return; }
+      const es = new EventSource('/api/v1/events');
+      this.evtSource = es;
+      es.onmessage = (e) => {
+        try {
+          this.monitoring = JSON.parse(e.data) || {};
+          this.pushMonitoringHistory();
+        } catch (err) {}
+      };
+      es.onerror = () => {
+        es.close();
+        if (this.evtSource === es) this.evtSource = null;
+        // fall back to polling if the stream drops
+        if (this.monitoringPolling && !this.monitoringTimeout) {
+          this.monitoringTimeout = setTimeout(() => this.pollMonitoring(), 5000);
+        }
+      };
+    },
+    async pollMonitoring() {
+      if (!this.monitoringPolling) return;
+      this.monitoringTimeout = null;
+      await this.fetchMonitoring();
+      if (this.monitoringPolling) this.monitoringTimeout = setTimeout(() => this.pollMonitoring(), 5000);
+    },
+    async pollAlerts() {
+      if (!this.monitoringPolling) return;
+      await this.fetchAlerts();
+      if (this.monitoringPolling) this.alertsTimeout = setTimeout(() => this.pollAlerts(), 10000);
+    },
+    pushMonitoringHistory() {
+      const max = 20;
+      this.monitoringHistory.cpu.push(this.monitoring.cpu_percent || 0);
+      this.monitoringHistory.memory.push(this.monitoring.memory?.used_kb || 0);
+      for (const k of ['cpu', 'memory']) {
+        if (this.monitoringHistory[k].length > max) this.monitoringHistory[k].shift();
+      }
     },
     async fetchMonitoring() {
       try {
-        const res = await api('/api/monitoring/summary', 'GET');
+        const res = await api('/api/v1/monitoring', 'GET');
         this.monitoring = res.data || {};
-        const max = 20;
-        this.monitoringHistory.cpu.push(this.monitoring.cpu_percent || 0);
-        this.monitoringHistory.memory.push(this.monitoring.memory?.used_kb || 0);
-        for (const k of ['cpu', 'memory']) {
-          if (this.monitoringHistory[k].length > max) this.monitoringHistory[k].shift();
-        }
+        this.pushMonitoringHistory();
       } catch (e) {
-        this.toast('Monitoring failed: ' + e.message, 'error');
-      } finally {
-        this.monitoringTimeout = setTimeout(() => this.fetchMonitoring(), 5000);
+        // silently retry next cycle
       }
     },
     async fetchAlerts() {
       try {
-        const res = await api('/api/alerts?limit=50', 'GET');
+        const res = await api('/api/v1/alerts?limit=50', 'GET');
         this.alerts = res.data || [];
       } catch (e) {
         // silently retry next cycle
-      } finally {
-        this.alertsTimeout = setTimeout(() => this.fetchAlerts(), 10000);
       }
     },
     async loadPresets() {
       try {
-        const res = await api('/api/stageneth/presets', 'GET');
+        const res = await api('/api/v1/presets', 'GET');
         this.presets = res.data || [];
       } catch (e) {
         this.toast('Presets load failed: ' + e.message, 'error');
@@ -736,7 +854,7 @@ createApp({
       this.hasPendingChanges = false;
       this.isLoading = true;
       try {
-        const res = await api('/api/stageneth/preset-apply', 'POST', { name: this.selectedPreset, services: this.selectedPresetServices });
+        const res = await api('/api/v1/presets/' + encodeURIComponent(this.selectedPreset), 'POST', { services: this.selectedPresetServices });
         this.toast(res.message + ' ' + (res.data?.log || ''), 'success');
         await this.refresh();
       } catch (e) {
@@ -757,11 +875,21 @@ createApp({
       if (!this.visibleTabs.includes(this.currentTab)) this.currentTab = 'simple';
       this.mobileMenuOpen = false;
     },
+    async toggleShowLock() {
+      const next = this.showLock ? '0' : '1';
+      try {
+        await api('/api/v1/globals', 'PUT', { show_lock: next });
+        await this.refresh();
+        this.toast(next === '1' ? 'Show lock activé — apply bloqué' : 'Show lock désactivé', next === '1' ? 'info' : 'success');
+      } catch (e) {
+        this.toast('Échec du show lock : ' + e.message, 'error');
+      }
+    },
     async apply() {
       this.hasPendingChanges = false;
       this.isLoading = true;
       try {
-        const res = await api('/api/stageneth/apply', 'POST', {});
+        const res = await api('/api/v1/apply', 'POST', {});
         this.toast(res.message + ' ' + (res.data?.log || ''), 'success');
       } catch (e) {
         this.toast("Échec de l'application : " + e.message, 'error');
@@ -773,8 +901,7 @@ createApp({
     async saveGlobals() {
       this.isLoading = true;
       try {
-        await this.uciSet('stageneth', 'globals', 'stageneth', { switch_vendor: this.switchVendor, trunk: this.trunk, ptp_timestamping: this.ptpTimestamping });
-        await this.uciCommit('stageneth');
+        await api('/api/v1/globals', 'PUT', { switch_vendor: this.switchVendor, trunk: this.trunk, ptp_timestamping: this.ptpTimestamping });
         this.hasPendingChanges = true;
         this.toast('Paramètres globaux enregistrés', 'success');
       } catch (e) {
@@ -786,7 +913,7 @@ createApp({
     async reload() {
       this.isLoading = true;
       try {
-        const res = await api('/api/network/reload', 'POST', {});
+        const res = await api('/api/v1/network/reload', 'POST', {});
         this.toast(res.message, 'success');
       } catch (e) {
         this.toast('Reload failed: ' + e.message, 'error');
@@ -798,7 +925,7 @@ createApp({
       this.isLoading = true;
       this.snmpResult = [];
       try {
-        const res = await api('/api/snmp/walk', 'POST', this.snmpQuery);
+        const res = await api('/api/v1/snmp/walk', 'POST', this.snmpQuery);
         this.snmpResult = res.data || [];
         this.toast(res.message + ' (' + this.snmpResult.length + ' results)', 'success');
       } catch (e) {
@@ -811,7 +938,7 @@ createApp({
       this.isLoading = true;
       this.mdnsResults = [];
       try {
-        const res = await api('/api/mdns/discover', 'POST', { service: this.mdnsService, duration: parseInt(this.mdnsDuration) });
+        const res = await api('/api/v1/mdns/discover', 'POST', { service: this.mdnsService, duration: parseInt(this.mdnsDuration) });
         this.mdnsResults = res.data || [];
         this.toast(res.message + ' (' + this.mdnsResults.length + ' found)', 'success');
       } catch (e) {
@@ -821,13 +948,17 @@ createApp({
       }
     },
     async changePassword() {
+      if (this.passwordChange.new_password.length < 8) {
+        this.toast('New password must be at least 8 characters', 'error');
+        return;
+      }
       if (this.passwordChange.new_password !== this.passwordChange.confirm_password) {
         this.toast('New passwords do not match', 'error');
         return;
       }
       this.isLoading = true;
       try {
-        const res = await api('/api/change-password', 'POST', this.passwordChange);
+        const res = await api('/api/v1/password', 'POST', this.passwordChange);
         this.toast(res.message, 'success');
         this.passwordChange = { current_password: '', new_password: '', confirm_password: '' };
       } catch (e) {
@@ -838,7 +969,7 @@ createApp({
     },
     async loadLan() {
       try {
-        const res = await api('/api/uci/get', 'POST', { config: 'network' });
+        const res = await this.uciGet('network');
         const lan = (res.data?.values || {}).lan || {};
         this.lan.ipaddr = lan.ipaddr || '';
         this.lan.netmask = lan.netmask || '';
@@ -851,10 +982,8 @@ createApp({
     },
     async loadNetworkInterfaces() {
       try {
-        const res = await api('/api/network/interfaces', 'GET');
-        console.log('network interfaces raw', res);
+        const res = await api('/api/v1/interfaces', 'GET');
         this.availableInterfaces = (res.data && res.data.interfaces) ? res.data.interfaces : [];
-        console.log('availableInterfaces set', this.availableInterfaces, 'physicalInterfaces', this.physicalInterfaces);
       } catch (e) {
         this.toast('Failed to load network interfaces: ' + e.message, 'error');
       }
@@ -878,7 +1007,7 @@ createApp({
     },
     async loadWan() {
       try {
-        const res = await api('/api/uci/get', 'POST', { config: 'network' });
+        const res = await this.uciGet('network');
         const wan = (res.data?.values || {}).wan || {};
         this.wan.ipaddr = wan.ipaddr || '';
         this.wan.netmask = wan.netmask || '';
@@ -893,8 +1022,7 @@ createApp({
     async saveLan() {
       this.isLoading = true;
       try {
-        await api('/api/uci/set', 'POST', {
-          config: 'network',
+        await api('/api/v1/raw/network', 'PUT', {
           section: 'lan',
           type: 'interface',
           values: {
@@ -905,8 +1033,7 @@ createApp({
             device: this.lan.device
           }
         });
-        await api('/api/uci/commit', 'POST', { config: 'network' });
-        await api('/api/network/reload', 'POST', {});
+        await api('/api/v1/network/reload', 'POST', {});
         this.toast('LAN settings saved and network reloaded', 'success');
       } catch (e) {
         this.toast('LAN save failed: ' + e.message, 'error');
@@ -917,8 +1044,7 @@ createApp({
     async saveWan() {
       this.isLoading = true;
       try {
-        await api('/api/uci/set', 'POST', {
-          config: 'network',
+        await api('/api/v1/raw/network', 'PUT', {
           section: 'wan',
           type: 'interface',
           values: {
@@ -930,8 +1056,7 @@ createApp({
             macaddr: this.wan.macaddr
           }
         });
-        await api('/api/uci/commit', 'POST', { config: 'network' });
-        await api('/api/network/reload', 'POST', {});
+        await api('/api/v1/network/reload', 'POST', {});
         this.toast('WAN settings saved and network reloaded', 'success');
       } catch (e) {
         this.toast('WAN save failed: ' + e.message, 'error');
@@ -941,7 +1066,7 @@ createApp({
     },
     async loadNtp() {
       try {
-        const res = await api('/api/ntp', 'GET');
+        const res = await api('/api/v1/ntp', 'GET');
         this.ntp = { ...this.ntp, ...res.data };
       } catch (e) {
         this.toast('NTP load failed: ' + e.message, 'error');
@@ -950,7 +1075,7 @@ createApp({
     async saveNtp() {
       this.isLoading = true;
       try {
-        const res = await api('/api/ntp/set', 'POST', {
+        const res = await api('/api/v1/ntp', 'PUT', {
           enabled: this.ntp.enabled,
           enable_server: this.ntp.enable_server,
           servers: this.ntp.servers,
@@ -966,8 +1091,7 @@ createApp({
     },
     async fetchNtpTime() {
       try {
-        const tz = encodeURIComponent(this.ntp.timezone || 'UTC0');
-        const res = await api('/api/time?tz=' + tz, 'GET');
+        const res = await api('/api/v1/time', 'GET');
         this.ntpTime = { ...this.ntpTime, ...res.data };
       } catch (e) {}
     },
@@ -1039,7 +1163,7 @@ createApp({
     async fetchLogs() {
       if (this.logsPaused) return;
       try {
-        const res = await api(`/api/logs?limit=${this.logsLimit}`, 'GET');
+        const res = await api(`/api/v1/logs?limit=${this.logsLimit}`, 'GET');
         this.logLines = res.data || [];
         this.$nextTick(() => {
           const el = this.$refs.logContainer;

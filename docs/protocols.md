@@ -14,7 +14,7 @@ StageNeth sert de routeur de services pour les flux audios/vidéos/lumières (AV
 - **DSCP/QoS** : StageNeth **préserve** les marquages DSCP. Activez `trust DSCP` / `classofservice trust DSCP` sur le port trunk du switch AV. Les valeurs typiques restent configurables par service dans `/etc/config/stageneth`.
 - **mDNS** : activez le refleteur `umdns` de StageNeth pour que les endpoints d'un VLAN découvrent ceux d'un autre VLAN (Dante Controller, NDI discovery).
 - **NTP** : StageNeth fournit un serveur NTP par VLAN (DHCP option 42). PTP et Dante ont besoin d'une source temporelle stable.
-- **EEE / offloads** : désactivez EEE et les offloads GRO/TSO/LRO/GSO sur les interfaces AV (fait automatiquement par `stageneth-network`).
+- **EEE / offloads** : désactivez EEE et les offloads GRO/TSO/LRO/GSO sur les interfaces AV (fait automatiquement par `stagenethd`).
 
 ## Tableau récapitulatif
 

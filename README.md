@@ -18,7 +18,7 @@ StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur rése
 - **Trunk AV configurable** (`eth1` par défaut) et **interface dédiée ST 2110** (`eth2`) en jumbo frames (MTU 9000)
 - **Serveur NTP** avec DHCP option 42 automatique par VLAN
 - **Réflecteur mDNS** (`umdns`) et découverte mDNS entre les VLANs AV
-- **Surveillance** : monitoring CPU/mémoire/services, alertes, journaux multi-sources triés/filtrés/colorisés, agent SNMP v2c/v3 et serveur syslog
+- **Surveillance** : monitoring CPU/mémoire/services, alertes, journaux multi-sources triés/filtrés/colorisés, agent SNMP v2c/v3, métriques Prometheus (`/api/metrics`) et syslog (collecteur et relais distant)
 - **Système** : changement de hostname, paramètres de sauvegarde/restauration UCI
 - **Support constructeurs** : profils générique, Luminex GigaCore, Cisco SG350/AV, Netgear AV avec conseils IGMP/PTP/jumbo/DSCP
 - **Firewall durci** : pas de NAT sur les zones média, inter-VLAN fermé par défaut, DHCP/DNS/NTP autorisés localement
@@ -27,9 +27,8 @@ StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur rése
 ## Architecture
 
 - `packages/` : packages OpenWrt StageNeth
-  - `stageneth-api` : API Go
   - `stageneth-ui` : interface Vue 3
-  - `stageneth-network` : orchestrateur Go, UCI defaults, PTP (linuxptp)
+  - `stagenethd` : moteur de configuration + API Go (sessions, argon2id, socket unix derrière nginx), UCI defaults, PTP (linuxptp)
 - `files/` : overlay OpenWrt (`uci-defaults`, bannière, `openwrt_release`)
 - `config/` : fragments de configuration OpenWrt
 - `builder/` : Containerfile et scripts
@@ -41,7 +40,8 @@ StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur rése
 | Fichier | Rôle |
 |---|---|
 | `/etc/config/stageneth` | Services, VLANs, bindings, forwardings, switch vendor, trunk |
-| `packages/stageneth-network/files/config` | Template UCI par défaut |
+| `/etc/config/stagenethd` | Utilisateurs applicatifs (hash argon2id, rôle), activation de l'API |
+| `packages/stagenethd/files/config` | Template UCI par défaut |
 | `build.conf` | Version (`STAGENETH_VERSION`) et suffixe de build (`BUILD_SEMVER_SUFFIX`) |
 
 ## Build rapide

@@ -35,4 +35,32 @@
               </div>
               <button @click="saveLogging" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Enregistrer la configuration syslog</button>
             </div>
+
+            <div class="bg-white dark:bg-slate-800 p-4 rounded shadow mb-4">
+              <h3 class="text-lg font-semibold mb-2">Collecteur syslog</h3>
+              <div class="mb-4 max-w-md">
+                <label class="flex items-center gap-2 mb-2">
+                  <input type="checkbox" v-model="collector.enabled" true-value="1" false-value="0" />
+                  <span class="text-sm">Recevoir les journaux des équipements réseau (syslog)</span>
+                </label>
+              </div>
+              <div v-if="collector.enabled === '1'" class="mb-4 max-w-md">
+                <label class="block text-sm mb-1">Port d'écoute</label>
+                <input v-model="collector.port" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" placeholder="514" />
+              </div>
+              <div v-if="collector.enabled === '1'" class="mb-4 max-w-md">
+                <label class="block text-sm mb-1">Protocole</label>
+                <select v-model="collector.protocol" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                  <option value="udp">UDP</option>
+                  <option value="tcp">TCP</option>
+                  <option value="both">UDP + TCP</option>
+                </select>
+              </div>
+              <div v-if="collector.enabled === '1'" class="mb-4 max-w-md">
+                <label class="block text-sm mb-1">Répertoire des journaux</label>
+                <input v-model="collector.dir" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" placeholder="/var/log/remote" />
+                <p class="text-xs text-slate-400 mt-1">Les journaux sont écrits dans &lt;répertoire&gt;/&lt;hôte&gt;.log et le port est ouvert sur les zones de service.</p>
+              </div>
+              <button @click="saveLogging" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Enregistrer la configuration syslog</button>
+            </div>
           </div>

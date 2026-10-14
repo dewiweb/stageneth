@@ -23,9 +23,9 @@ qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
 
 ## Vérifications générales
 
-- `nginx`, `stageneth-api` et `stageneth-network` sont démarrés (`ps w`, `logread -f`)
-- L'API `/api/login` retourne un token JWT
-- Les endpoints `/api/network/interfaces`, `/api/ntp`, `/api/logs` et `/api/monitoring/summary` répondent
+- `nginx`, `stageneth-api` et `stagenethd` sont démarrés (`ps w`, `logread -f`)
+- L'API `/api/v1/session` (POST) retourne un cookie de session HttpOnly
+- Les endpoints `/api/v1/interfaces`, `/api/v1/ntp`, `/api/v1/logs` et `/api/v1/monitoring` répondent
 - La bannière et le hostname affichent `StageNeth`
 - Le wizard de premier démarrage permet de définir le mot de passe et d'activer les services
 
@@ -102,11 +102,14 @@ qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
 | Monitoring UI | Onglet `Monitoring` | CPU, mémoire, DHCP leases, services UP/DOWN, alertes |
 | Logs | Onglet `Logs` | Logs multi-sources (logread, rsyslog, nginx) triés par timestamp, filtrables et colorisés en temps réel |
 | SNMP | `snmpwalk -v2c -c public <ip> 1.3.6.1.2.1.1` | Réponse système |
-| Syslog distant | Envoyer un log UDP 514 depuis un switch | Fichier `/var/log/remote/` (si `rsyslog` configuré) |
+| Collecteur syslog | Activer le collecteur (Système → Collecteur syslog) puis envoyer un log UDP 514 depuis un switch | Fichier `/var/log/remote/<hôte>.log` |
+| Relais syslog | Activer l'envoi distant (Système → Journal distant) vers un collecteur | Le collecteur distant reçoit les journaux (omfwd) |
+| Métriques Prometheus | `curl http://<ip>/api/metrics` (IP privée requise) | Format exposition 0.0.4 (`stageneth_*`) |
 
 ## En cas de problème
 
-- Relancer l'orchestrateur : `/etc/init.d/stageneth-network restart`
+- Relancer l'orchestrateur : `/etc/init.d/stagenethd restart`
+- Revenir à la dernière configuration fonctionnelle : `stagenethd rollback`
 - Redémarrer le refleteur mDNS : `/etc/init.d/umdns restart`
 - Vérifier la configuration UCI : `uci show stageneth`, `uci show network`, `uci show dhcp`, `uci show firewall`
 - Consulter les logs : `logread -f` et l'onglet `Logs` de l'UI

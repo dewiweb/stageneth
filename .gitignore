@@ -33,5 +33,6 @@
 *~
 
 # Compiled binaries
-/packages/stageneth-api/files/stageneth-api
+/packages/stagenethd/files/stageneth-api
+/packages/stagenethd/files/stagenethd
 build-logs/

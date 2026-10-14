@@ -1,0 +1,64 @@
+### network
+config interface 'svc_mgmt'
+	option device 'br_mgmt'
+	option proto 'static'
+	option ipaddr '10.1.0.1'
+	option netmask '255.255.255.0'
+
+config device 'br_mgmt'
+	option name 'br_mgmt'
+	option type 'bridge'
+	option ports 'eth1'
+	option mtu '1500'
+
+### firewall
+config zone 'zone_mgmt'
+	option name 'mgmt'
+	option network 'svc_mgmt'
+	option input 'ACCEPT'
+	option output 'ACCEPT'
+	option forward 'REJECT'
+
+config rule 'allow_dhcp_mgmt'
+	option name 'Allow-DHCP-mgmt'
+	option src 'mgmt'
+	option proto 'udp'
+	option dest_port '67'
+	option target 'ACCEPT'
+
+config rule 'allow_dns_mgmt'
+	option name 'Allow-DNS-mgmt'
+	option src 'mgmt'
+	option proto 'tcp udp'
+	option dest_port '53'
+	option target 'ACCEPT'
+
+config rule 'allow_ntp_mgmt'
+	option name 'Allow-NTP-mgmt'
+	option src 'mgmt'
+	option proto 'udp'
+	option dest_port '123'
+	option target 'ACCEPT'
+
+### dhcp
+config dhcp 'svc_mgmt'
+	option interface 'svc_mgmt'
+	option start '101'
+	option limit '154'
+	option leasetime '12h'
+	list dhcp_option '42,10.1.0.1'
+	list interface_name 'svc_mgmt'
+
+### rsyslog
+### umdns
+config umdns 'umdns'
+	option enabled '1'
+	list network 'svc_mgmt'
+
+### mdns_repeater
+config mdns_repeater 'main'
+	option enabled '1'
+	list interface 'br_mgmt'
+
+### rsyslog.conf collector block
+

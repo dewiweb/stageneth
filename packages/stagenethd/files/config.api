@@ -1,0 +1,10 @@
+# StageNeth daemon configuration.
+#
+# `config user '<name>'` sections are managed by the API (firstboot wizard,
+# user management). Passwords are stored as argon2id PHC strings.
+
+config main 'main'
+	option enabled '1'
+	# Optional: extra CIDRs/IPs allowed to scrape /api/metrics.
+	# Replaces the built-in private-range allowlist when set.
+	#option metrics_allow '192.0.2.0/24'

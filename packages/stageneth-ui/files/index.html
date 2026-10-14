@@ -37,6 +37,7 @@
         <span v-if="hasPendingChanges" class="hidden md:inline text-xs bg-orange-600 text-white px-2 py-1 rounded-full animate-pulse"><i class="fas fa-circle mr-1"></i>en attente</span>
       </div>
       <div class="flex items-center gap-3">
+        <button v-if="token" @click="toggleShowLock" class="text-sm px-3 py-1 rounded" :class="showLock ? 'bg-orange-600 hover:bg-orange-500 text-white' : 'bg-slate-700 hover:bg-slate-600'" :title="showLock ? 'Show lock actif : apply bloqué — cliquer pour déverrouiller' : 'Verrouiller les apply (show lock)'"><i :class="showLock ? 'fas fa-lock' : 'fas fa-lock-open'" class="mr-1"></i> {{ showLock ? 'Lock' : '' }}</button>
         <button v-if="token" @click="refresh(); fetchMonitoring();" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" title="Actualiser les données"><i class="fas fa-sync-alt mr-1"></i> Actualiser</button>
         <button v-if="token" @click="toggleSimpleMode" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" :title="simpleMode ? 'Passer en mode expert' : 'Passer en mode simple'"><i :class="simpleMode ? 'fas fa-cogs' : 'fas fa-user'" class="mr-1"></i> {{ simpleMode ? 'Expert' : 'Simple' }}</button>
         <button v-if="token" @click="toggleTheme" class="text-sm px-3 py-1 rounded bg-slate-700 hover:bg-slate-600" :title="isDark ? 'Mode clair' : 'Mode sombre'">
@@ -143,6 +144,6 @@
   </div>
   <script src="api.js"></script>
   <script src="utils.js"></script>
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>

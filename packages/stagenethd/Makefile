@@ -1,0 +1,101 @@
+#
+# Copyright (C) 2026 StageNeth Contributors
+# SPDX-License-Identifier: GPL-2.0-only
+#
+
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=stagenethd
+PKG_VERSION:=0.3.0
+PKG_RELEASE:=1
+PKG_LICENSE:=GPL-2.0-only
+
+PKG_BUILD_DIR:=$(BUILD_DIR)/stagenethd-$(PKG_VERSION)
+
+include $(INCLUDE_DIR)/package.mk
+
+define Package/stagenethd
+	SECTION:=base
+	CATEGORY:=StageNeth
+	TITLE:=StageNeth daemon (engine + API)
+	DEPENDS:=+firewall4 +ethtool +tcpdump +snmpd +rsyslog +umdns +mdns-repeater +linuxptp +nginx-ssl +ip-bridge +mdnsresponder
+endef
+
+define Package/stagenethd/description
+	Desired-state configuration engine and management API for StageNeth:
+	renders UCI config for network, firewall, DHCP and logging from
+	/etc/config/stageneth and applies it transactionally. The API binary
+	serves the management REST endpoints on a unix socket behind nginx.
+endef
+
+GO_ARCH:=amd64
+ifeq ($(ARCH),x86_64)
+GO_ARCH:=amd64
+endif
+ifeq ($(ARCH),i386)
+GO_ARCH:=386
+endif
+ifeq ($(ARCH),aarch64)
+GO_ARCH:=arm64
+endif
+ifeq ($(ARCH),arm)
+GO_ARCH:=arm
+endif
+ifeq ($(ARCH),mips)
+GO_ARCH:=mips
+endif
+ifeq ($(ARCH),mipsel)
+GO_ARCH:=mipsle
+endif
+ifeq ($(ARCH),mips64)
+GO_ARCH:=mips64
+endif
+ifeq ($(ARCH),mips64el)
+GO_ARCH:=mips64le
+endif
+
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+	cp -R ./files/* $(PKG_BUILD_DIR)/
+endef
+
+define Build/Configure
+endef
+
+define Build/Compile
+	cd $(PKG_BUILD_DIR) && \
+		GO111MODULE=on GOOS=linux GOARCH=$(GO_ARCH) CGO_ENABLED=0 go build -mod=vendor -o stagenethd ./cmd/stagenethd && \
+		GO111MODULE=on GOOS=linux GOARCH=$(GO_ARCH) CGO_ENABLED=0 go build -mod=vendor -o stageneth-api ./cmd/stageneth-api
+endef
+
+define Package/stagenethd/install
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) ./files/config $(1)/etc/config/stageneth
+	$(INSTALL_CONF) ./files/config.api $(1)/etc/config/stagenethd
+
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/stagenethd $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/stageneth-api $(1)/usr/sbin/
+
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/stagenethd.init $(1)/etc/init.d/stagenethd
+	$(INSTALL_BIN) ./files/stageneth-api.init $(1)/etc/init.d/stageneth-api
+	$(INSTALL_BIN) ./files/stageneth-ptp.init $(1)/etc/init.d/stageneth-ptp
+	$(INSTALL_DIR) $(1)/etc/nginx/conf.d
+	$(INSTALL_DATA) ./files/stageneth-api.locations $(1)/etc/nginx/conf.d/
+	$(INSTALL_DIR) $(1)/etc/stageneth
+	$(INSTALL_DATA) ./files/ptp4l-stage.conf $(1)/etc/stageneth/ptp4l-stage.conf
+	$(INSTALL_DIR) $(1)/etc/uci-defaults
+	$(INSTALL_BIN) ./files/uci-defaults/99_stageneth-ntp $(1)/etc/uci-defaults/
+	$(INSTALL_BIN) ./files/uci-defaults/99_stageneth-monitoring $(1)/etc/uci-defaults/
+endef
+
+define Package/stagenethd/postinst
+#!/bin/sh
+if [ -z "$$IPKG_INSTROOT" ]; then
+  /etc/init.d/stagenethd enable
+  /etc/init.d/stagenethd restart
+fi
+endef
+
+$(eval $(call BuildPackage,stagenethd))
