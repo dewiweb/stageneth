@@ -72,11 +72,18 @@ func mdnsParseZone(out []byte, serviceType, domain string) ([]string, map[string
 		}
 	}
 
+	// bound the per-hostname dns-sd resolves — each can take up to 2s and
+	// a hostile mDNS advertiser controls the entry count
+	resolved := 0
 	for _, entry := range entries {
+		if resolved >= 32 {
+			break
+		}
 		if hostname, ok := entry["hostname"].(string); ok && hostname != "" {
 			if ip, ok := ips[hostname]; ok {
 				entry["ip"] = ip
 			} else {
+				resolved++
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				ipOut, _ := exec.CommandContext(ctx, "dns-sd", "-G", "v4", hostname+".").CombinedOutput()
 				cancel()
@@ -175,6 +182,11 @@ func mdnsDiscover(w http.ResponseWriter, r *http.Request) {
 		} else if resolveDuration > 1 {
 			resolveDuration = 1
 		}
+		// cap the service-type sweep — every iteration is a timed
+		// subprocess and the advertiser controls the type count
+		if len(services) > 16 {
+			services = services[:16]
+		}
 		for _, serviceType := range services {
 			entries, names := mdnsResolve(serviceType, req.Domain, resolveDuration)
 			for _, name := range names {
@@ -265,6 +277,10 @@ func snmpWalk(w http.ResponseWriter, r *http.Request) {
 	if req.Port == 0 {
 		req.Port = 161
 	}
+	if req.Port < 1 || req.Port > 65535 {
+		respond(w, 400, nil, "invalid port")
+		return
+	}
 	if req.Version == "" {
 		req.Version = "v2c"
 	}
@@ -309,7 +325,11 @@ func snmpWalk(w http.ResponseWriter, r *http.Request) {
 	defer g.Conn.Close()
 
 	results := []map[string]interface{}{}
+	errWalkFull := fmt.Errorf("walk truncated at 2000 entries")
 	err := g.Walk(req.OID, func(pdu gosnmp.SnmpPDU) error {
+		if len(results) >= 2000 {
+			return errWalkFull
+		}
 		results = append(results, map[string]interface{}{
 			"oid":   pdu.Name,
 			"type":  pdu.Type.String(),
@@ -317,6 +337,9 @@ func snmpWalk(w http.ResponseWriter, r *http.Request) {
 		})
 		return nil
 	})
+	if err == errWalkFull {
+		err = nil // truncation is not a failure
+	}
 	if err != nil {
 		respond(w, 500, nil, "snmp walk failed: "+err.Error())
 		return

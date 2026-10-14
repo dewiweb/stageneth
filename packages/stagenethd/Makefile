@@ -94,7 +94,10 @@ define Package/stagenethd/postinst
 #!/bin/sh
 if [ -z "$$IPKG_INSTROOT" ]; then
   /etc/init.d/stagenethd enable
-  /etc/init.d/stagenethd restart
+  # full apply incl. service reloads — 'start' uses -noreload (boot path)
+  /etc/init.d/stagenethd reload
+  /etc/init.d/stageneth-api enable
+  /etc/init.d/stageneth-api restart
 fi
 endef
 
