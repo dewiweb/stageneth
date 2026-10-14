@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"stageneth/internal/auth"
 )
@@ -108,5 +109,44 @@ func TestMetricsACL(t *testing.T) {
 		if rr.Code != tc.want {
 			t.Errorf("ip %q: got %d want %d", tc.ip, rr.Code, tc.want)
 		}
+	}
+}
+
+func TestLoginLimiter(t *testing.T) {
+	loginLimiter.Lock()
+	loginLimiter.fails = map[string][]time.Time{}
+	loginLimiter.Unlock()
+	ip := "10.0.0.9"
+	for i := 0; i < loginMaxFails; i++ {
+		if loginThrottled(ip) {
+			t.Fatalf("throttled after %d fails", i)
+		}
+		loginFailed(ip)
+	}
+	if !loginThrottled(ip) {
+		t.Fatal("not throttled at limit")
+	}
+	// a different IP is unaffected
+	if loginThrottled("10.0.0.10") {
+		t.Fatal("unrelated IP throttled")
+	}
+	// stale entries are pruned
+	loginLimiter.Lock()
+	loginLimiter.fails[ip] = []time.Time{time.Now().Add(-loginFailWindow - time.Minute)}
+	loginLimiter.Unlock()
+	if loginThrottled(ip) {
+		t.Fatal("stale fails still throttle")
+	}
+	loginLimiter.Lock()
+	if _, exists := loginLimiter.fails[ip]; exists {
+		t.Fatal("stale ip key not evicted")
+	}
+	loginLimiter.Unlock()
+	// spoofed X-Forwarded-For must not defeat the limiter
+	req := httptest.NewRequest("POST", "/api/v1/session", nil)
+	req.Header.Set("X-Real-IP", "10.0.0.1")
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+	if got := clientIP(req); got != "10.0.0.1" {
+		t.Fatalf("clientIP trusted spoofed XFF: %q", got)
 	}
 }

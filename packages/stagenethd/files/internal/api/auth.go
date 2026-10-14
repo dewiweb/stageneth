@@ -3,7 +3,6 @@ package api
 import (
 	json "encoding/json"
 	http "net/http"
-	strings "strings"
 	sync "sync"
 	time "time"
 
@@ -23,11 +22,11 @@ var loginLimiter = struct {
 }{fails: map[string][]time.Time{}}
 
 func clientIP(r *http.Request) string {
+	// Only X-Real-IP is trusted: nginx overwrites it with $remote_addr.
+	// X-Forwarded-For is client-controlled (nginx doesn't set it), so
+	// honoring it would let an attacker rotate fake IPs past the limiter.
 	if ip := r.Header.Get("X-Real-IP"); ip != "" {
 		return ip
-	}
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		return strings.TrimSpace(strings.SplitN(fwd, ",", 2)[0])
 	}
 	return r.RemoteAddr
 }
@@ -43,12 +42,31 @@ func loginThrottled(ip string) bool {
 			keep = append(keep, t)
 		}
 	}
+	if len(keep) == 0 {
+		delete(loginLimiter.fails, ip)
+		return false
+	}
 	loginLimiter.fails[ip] = keep
 	return len(keep) >= loginMaxFails
 }
 
 func loginFailed(ip string) {
 	loginLimiter.Lock()
+	// hard cap: unique-IP scanning must not grow the map forever —
+	// evict stale entries first, then arbitrary ones until under cap
+	if len(loginLimiter.fails) >= 1024 {
+		for k, v := range loginLimiter.fails {
+			if len(v) == 0 || time.Since(v[len(v)-1]) > loginFailWindow {
+				delete(loginLimiter.fails, k)
+			}
+		}
+		for k := range loginLimiter.fails {
+			if len(loginLimiter.fails) < 1024 {
+				break
+			}
+			delete(loginLimiter.fails, k)
+		}
+	}
 	loginLimiter.fails[ip] = append(loginLimiter.fails[ip], time.Now())
 	loginLimiter.Unlock()
 }
