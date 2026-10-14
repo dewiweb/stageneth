@@ -22,6 +22,12 @@ type preset struct {
 	Forwardings                        []presetForwarding
 }
 
+// errPresetValidation marks request-validation failures (bad name,
+// unknown service) so the handler can return 400 instead of 500.
+type errPresetValidation struct{ msg string }
+
+func (e *errPresetValidation) Error() string { return e.msg }
+
 var stagenethPresets = []preset{
 	{
 		Name:        "base",
@@ -134,6 +140,11 @@ func applyPresetToUci(name string, services []string) (string, error) {
 	for _, s := range services {
 		selectedSet[s] = true
 	}
+	// mgmt can never be deselected — dropping it deletes the management
+	// VLAN on apply and locks the operator out of the appliance
+	if len(services) > 0 {
+		selectedSet["mgmt"] = true
+	}
 	var selected *preset
 	for i := range stagenethPresets {
 		if stagenethPresets[i].Name == name {
@@ -142,7 +153,20 @@ func applyPresetToUci(name string, services []string) (string, error) {
 		}
 	}
 	if selected == nil {
-		return "", fmt.Errorf("preset not found")
+		return "", &errPresetValidation{"preset not found"}
+	}
+	// the services filter must name preset services — a typo silently
+	// producing a mgmt-only config is worse than an error
+	if len(services) > 0 {
+		valid := map[string]bool{}
+		for _, s := range selected.Services {
+			valid[s.Name] = true
+		}
+		for _, s := range services {
+			if !valid[s] {
+				return "", &errPresetValidation{fmt.Sprintf("service %q not in preset %q", s, name)}
+			}
+		}
 	}
 	f, _, err := loadStageneth()
 	if err != nil {
@@ -238,7 +262,11 @@ func presetApply(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := applyPresetToUci(name, req.Services)
 	if err != nil {
-		respond(w, 500, map[string]string{"log": out}, "preset apply failed")
+		code := 500
+		if _, ok := err.(*errPresetValidation); ok {
+			code = 400
+		}
+		respond(w, code, map[string]string{"log": out}, "preset apply failed")
 		return
 	}
 	audit("preset_apply", name, r)
