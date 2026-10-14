@@ -207,24 +207,40 @@ func firstbootReset(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, nil, "firstboot reset")
 }
 
+func markFirstbootDone() bool {
+	f, _, err := loadStageneth()
+	if err != nil {
+		return false
+	}
+	s := findSection(f, "stageneth", "globals")
+	if s == nil {
+		f.Sections = append([]ucifile.Section{{Type: "stageneth", Name: "globals",
+			Options: []ucifile.Option{{Name: "firstboot_done", Value: "1"}}}}, f.Sections...)
+	} else {
+		s.Set("firstboot_done", "1")
+	}
+	return saveStageneth(f) == nil
+}
+
 func firstbootDone() bool {
-	out, _ := exec.Command("uci", "-q", "get", "stageneth.globals.firstboot_done").Output()
-	return strings.TrimSpace(string(out)) == "1"
+	f, _, err := loadStageneth()
+	if err != nil {
+		return false
+	}
+	if s := findSection(f, "stageneth", "globals"); s != nil {
+		return s.Get("firstboot_done") == "1"
+	}
+	return false
 }
 func listServices() []string {
-	out, err := exec.Command("uci", "-q", "show", "stageneth").Output()
+	f, _, err := loadStageneth()
 	if err != nil {
 		return []string{}
 	}
-	sections := parseUciShow(string(out))
 	names := []string{}
-	for s, data := range sections {
-		m, ok := data.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if t, ok := m[".type"].(string); ok && t == "service" {
-			names = append(names, s)
+	for _, s := range f.Sections {
+		if s.Type == "service" {
+			names = append(names, s.Name)
 		}
 	}
 	sort.Strings(names)
@@ -302,9 +318,10 @@ func wizard(w http.ResponseWriter, r *http.Request) {
 		respond(w, 500, map[string]string{"log": out}, "network apply failed")
 		return
 	}
-	exec.Command("uci", "-q", "set", "stageneth.globals=stageneth").Run()
-	exec.Command("uci", "-q", "set", "stageneth.globals.firstboot_done=1").Run()
-	exec.Command("uci", "-q", "commit", "stageneth").Run()
+	if !markFirstbootDone() {
+		respond(w, 500, nil, "config save failed")
+		return
+	}
 	if !grantSession(w, "admin", "tech") {
 		return
 	}
@@ -328,9 +345,10 @@ func wizardSkip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setConsolePassword(req.Password)
-	exec.Command("uci", "-q", "set", "stageneth.globals=stageneth").Run()
-	exec.Command("uci", "-q", "set", "stageneth.globals.firstboot_done=1").Run()
-	exec.Command("uci", "-q", "commit", "stageneth").Run()
+	if !markFirstbootDone() {
+		respond(w, 500, nil, "config save failed")
+		return
+	}
 	if !grantSession(w, "admin", "tech") {
 		return
 	}

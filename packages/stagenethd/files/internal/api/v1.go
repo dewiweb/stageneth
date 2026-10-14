@@ -7,6 +7,7 @@ import (
 	http "net/http"
 	os "os"
 	regexp "regexp"
+	sort "sort"
 	strconv "strconv"
 	strings "strings"
 	time "time"
@@ -134,11 +135,17 @@ func findSection(f *ucifile.File, typ, name string) *ucifile.Section {
 	return nil
 }
 
-// replaceSectionOptions writes vals as the section's complete option set.
+// replaceSectionOptions writes vals as the section's complete option set,
+// in sorted order so file output is deterministic.
 func replaceSectionOptions(s *ucifile.Section, vals map[string]string) {
+	keys := make([]string, 0, len(vals))
+	for k := range vals {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	s.Options = nil
-	for k, v := range vals {
-		s.Options = append(s.Options, ucifile.Option{Name: k, Value: v})
+	for _, k := range keys {
+		s.Options = append(s.Options, ucifile.Option{Name: k, Value: vals[k]})
 	}
 }
 

@@ -54,7 +54,7 @@ func logsGet(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
-	out, err := exec.Command("logread").CombinedOutput()
+	out, err := exec.Command("logread", "-l", "1000").CombinedOutput()
 	if err != nil {
 		respond(w, 500, nil, "logread failed")
 		return

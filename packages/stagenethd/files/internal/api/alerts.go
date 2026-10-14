@@ -45,7 +45,7 @@ func alertsList(w http.ResponseWriter, r *http.Request) {
 		limit = 500
 	}
 	lines := []string{}
-	out, err := exec.Command("logread").CombinedOutput()
+	out, err := exec.Command("logread", "-l", "500").CombinedOutput()
 	if err == nil || len(out) > 0 {
 		for _, line := range strings.Split(string(out), "\n") {
 			if line = strings.TrimSpace(line); line != "" {

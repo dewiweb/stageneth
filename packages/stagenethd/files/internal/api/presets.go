@@ -5,7 +5,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 	exec "os/exec"
-	strings "strings"
+	"stageneth/internal/ucifile"
 )
 
 type presetService struct {
@@ -123,6 +123,10 @@ var stagenethPresets = []preset{
 	},
 }
 
+// applyPresetToUci rewrites the stageneth config with the preset's
+// service topology, preserving globals and logging sections (previous
+// implementation rm'd the file and destroyed global settings).
+// Returns the stagenethd apply output.
 func applyPresetToUci(name string, services []string) (string, error) {
 	selectedSet := map[string]bool{}
 	for _, s := range services {
@@ -138,24 +142,22 @@ func applyPresetToUci(name string, services []string) (string, error) {
 	if selected == nil {
 		return "", fmt.Errorf("preset not found")
 	}
-	exec.Command("rm", "-f", "/etc/config/stageneth").Run()
-	exec.Command("touch", "/etc/config/stageneth").Run()
-	commands := []string{}
+	f, _, err := loadStageneth()
+	if err != nil {
+		return "", err
+	}
+	// keep globals + logging; drop service/binding/forwarding (the
+	// topology is fully replaced by the preset)
+	var out []ucifile.Section
+	for _, s := range f.Sections {
+		if s.Type == "stageneth" || s.Type == "logging" {
+			out = append(out, s)
+		}
+	}
 	for _, s := range selected.Services {
 		if len(services) > 0 && !selectedSet[s.Name] {
 			continue
 		}
-		untagged := s.Untagged
-		if untagged == "" {
-			untagged = "0"
-		}
-		commands = append(commands, fmt.Sprintf("set stageneth.%s=service", s.Name))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.vlan_id='%s'", s.Name, s.VlanID))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.priority='%s'", s.Name, s.Priority))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.dscp='%s'", s.Name, s.DSCP))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.ptp='%s'", s.Name, s.PTP))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.multicast='%s'", s.Name, s.Multicast))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.untagged='%s'", s.Name, untagged))
 		mtu := s.MTU
 		if mtu == "" {
 			mtu = "1500"
@@ -163,33 +165,44 @@ func applyPresetToUci(name string, services []string) (string, error) {
 				mtu = "9000"
 			}
 		}
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.mtu='%s'", s.Name, mtu))
+		untagged := s.Untagged
+		if untagged == "" {
+			untagged = "0"
+		}
+		opts := []ucifile.Option{
+			{Name: "vlan_id", Value: s.VlanID},
+			{Name: "priority", Value: s.Priority},
+			{Name: "dscp", Value: s.DSCP},
+			{Name: "ptp", Value: s.PTP},
+			{Name: "multicast", Value: s.Multicast},
+			{Name: "untagged", Value: untagged},
+			{Name: "mtu", Value: mtu},
+		}
 		if s.IPAddr != "" {
-			commands = append(commands, fmt.Sprintf("set stageneth.%s.ipaddr='%s'", s.Name, s.IPAddr))
+			opts = append(opts, ucifile.Option{Name: "ipaddr", Value: s.IPAddr})
 		}
 		if s.Netmask != "" {
-			commands = append(commands, fmt.Sprintf("set stageneth.%s.netmask='%s'", s.Name, s.Netmask))
+			opts = append(opts, ucifile.Option{Name: "netmask", Value: s.Netmask})
 		}
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.description='%s'", s.Name, s.Description))
+		opts = append(opts, ucifile.Option{Name: "description", Value: s.Description})
+		out = append(out, ucifile.Section{Type: "service", Name: s.Name, Options: opts})
 	}
-	for _, f := range selected.Forwardings {
-		if len(services) > 0 && (!selectedSet[f.Src] || !selectedSet[f.Dest]) {
+	for _, fw := range selected.Forwardings {
+		if len(services) > 0 && (!selectedSet[fw.Src] || !selectedSet[fw.Dest]) {
 			continue
 		}
-		commands = append(commands, fmt.Sprintf("set stageneth.%s=forwarding", f.Name))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.src='%s'", f.Name, f.Src))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.dest='%s'", f.Name, f.Dest))
-		commands = append(commands, fmt.Sprintf("set stageneth.%s.enabled='1'", f.Name))
+		out = append(out, ucifile.Section{Type: "forwarding", Name: fw.Name, Options: []ucifile.Option{
+			{Name: "src", Value: fw.Src},
+			{Name: "dest", Value: fw.Dest},
+			{Name: "enabled", Value: "1"},
+		}})
 	}
-	in := strings.Join(commands, "\n") + "\n"
-	cmd := exec.Command("uci", "-q", "batch")
-	cmd.Stdin = strings.NewReader(in)
-	if err := cmd.Run(); err != nil {
+	f.Sections = out
+	if err := saveStageneth(f); err != nil {
 		return "", err
 	}
-	exec.Command("uci", "-q", "commit", "stageneth").Run()
-	out, err := exec.Command("/usr/sbin/stagenethd", "apply").CombinedOutput()
-	return string(out), err
+	out2, err := exec.Command("/usr/sbin/stagenethd", "apply").CombinedOutput()
+	return string(out2), err
 }
 
 func presetsList(w http.ResponseWriter, r *http.Request) {

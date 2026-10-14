@@ -89,9 +89,23 @@ func mdnsParseZone(out []byte, serviceType, domain string) ([]string, map[string
 
 	return names, entries
 }
+
+// dnsSd runs a bounded dns-sd query. busybox `timeout` kills the browse
+// after `duration` seconds — no shell, so nothing from the wire or the
+// request can reach a command line.
+func dnsSd(duration int, args ...string) []byte {
+	argv := append([]string{"timeout", strconv.Itoa(duration), "dns-sd"}, args...)
+	out, _ := exec.Command(argv[0], argv[1:]...).CombinedOutput()
+	return out
+}
+
+var mdnsTokenRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
 func mdnsResolve(serviceType, domain string, duration int) (map[string]map[string]interface{}, []string) {
-	cmd := fmt.Sprintf("dns-sd -Z %s %s & PID=$!; sleep %d; kill $PID 2>/dev/null; wait $PID 2>/dev/null", serviceType, domain, duration)
-	out, _ := exec.Command("sh", "-c", cmd).CombinedOutput()
+	if !mdnsTokenRe.MatchString(serviceType) || !mdnsTokenRe.MatchString(domain) {
+		return nil, nil
+	}
+	out := dnsSd(duration, "-Z", serviceType, domain)
 	names, entries := mdnsParseZone(out, serviceType, domain)
 	return entries, names
 }
@@ -124,12 +138,7 @@ func mdnsDiscover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := fmt.Sprintf("dns-sd -B %s %s & PID=$!; sleep %d; kill $PID 2>/dev/null; wait $PID 2>/dev/null", req.Service, req.Domain, req.Duration)
-	out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
-	if err != nil && len(out) == 0 {
-		respond(w, 500, nil, "mdns command failed: "+err.Error())
-		return
-	}
+	out := dnsSd(req.Duration, "-B", req.Service, req.Domain)
 
 	if req.Service == "_services._dns-sd._udp" {
 		seen := map[string]bool{}
