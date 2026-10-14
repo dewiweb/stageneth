@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"stageneth/internal/ucifile"
 )
@@ -16,6 +17,7 @@ import (
 //		option password '$argon2id$...'
 type Users struct {
 	path string
+	mu   sync.Mutex // serializes load→mutate→save
 }
 
 func NewUsers(path string) *Users { return &Users{path: path} }
@@ -149,6 +151,8 @@ func (u *Users) Set(name, role, password string) error {
 	if err != nil {
 		return err
 	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	f, err := u.load()
 	if err != nil {
 		return err
@@ -172,6 +176,8 @@ func (u *Users) SetPassword(name, password string) error {
 	if err != nil {
 		return err
 	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	f, err := u.load()
 	if err != nil {
 		return err
@@ -186,6 +192,8 @@ func (u *Users) SetPassword(name, password string) error {
 
 // Remove deletes a user. Refuses to remove the last remaining user.
 func (u *Users) Remove(name string) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	f, err := u.load()
 	if err != nil {
 		return err
@@ -232,7 +240,7 @@ func (u *Users) Verify(name, password string) (string, error) {
 	}
 	role := s.Get("role")
 	if !ValidRole(role) {
-		role = "tech" // legacy/unknown role: keep permissive
+		role = "operator" // unknown role: least privilege, not admin
 	}
 	return role, nil
 }

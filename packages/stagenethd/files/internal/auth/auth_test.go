@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -120,4 +122,55 @@ func TestSessionExpiry(t *testing.T) {
 	if _, ok := s.Get(id); ok {
 		t.Error("expired session still valid")
 	}
+}
+
+// Concurrent writers must not lose updates: two goroutines creating
+// different users should both land in the file.
+func TestUsersConcurrentWriters(t *testing.T) {
+	u := NewUsers(filepath.Join(t.TempDir(), "stagenethd"))
+	var wg sync.WaitGroup
+	for _, name := range []string{"writer-a", "writer-b", "writer-c", "writer-d"} {
+		wg.Add(1)
+		go func(n string) {
+			defer wg.Done()
+			if err := u.Set(n, "operator", "concurrent-pass-1"); err != nil {
+				t.Error(err)
+			}
+		}(name)
+	}
+	wg.Wait()
+	if got := len(u.List()); got != 4 {
+		t.Fatalf("users = %d, want 4 (lost update under contention)", got)
+	}
+}
+
+// An unknown role on an existing account must verify as operator
+// (least privilege), never silently become tech.
+func TestVerifyUnknownRoleLeastPrivilege(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "stagenethd")
+	content := []byte(`config user 'weird'
+	option role 'superadmin'
+	option password '` + mustHash(t, "correct-pass-1") + `'
+`)
+	if err := os.WriteFile(p, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	u := NewUsers(p)
+	role, err := u.Verify("weird", "correct-pass-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role != "operator" {
+		t.Fatalf("unknown role became %q, want operator", role)
+	}
+}
+
+func mustHash(t *testing.T, pw string) string {
+	t.Helper()
+	h, err := HashPassword(pw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
 }
