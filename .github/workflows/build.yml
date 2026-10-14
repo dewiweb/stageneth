@@ -9,7 +9,43 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: packages/stagenethd/files/go.sum
+
+      - name: Vet and test (race)
+        working-directory: packages/stagenethd/files
+        run: |
+          test -z "$(gofmt -l .)" || { gofmt -d .; exit 1; }
+          go vet -mod=vendor ./...
+          go test -count=1 -race -mod=vendor ./...
+
+      - name: JS syntax check
+        run: |
+          find packages/stageneth-ui/files -name '*.js' -not -path '*/vendor/*' -exec node --check {} \;
+
+      - name: Shell syntax check
+        run: |
+          find packages -name '*.init' -exec sh -n {} \;
+          sh -n files/etc/uci-defaults/99-stageneth
+          sh -n tests/e2e/run.sh tests/e2e-https/run.sh
+
+      - name: E2E (unix socket)
+        run: tests/e2e/run.sh
+
+      - name: E2E (HTTPS via real nginx + real locations)
+        run: tests/e2e-https/run.sh
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
