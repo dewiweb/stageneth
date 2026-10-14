@@ -155,6 +155,29 @@ func metricsPrometheus(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(&b, "stageneth_service_up{name=\"%s\"} %d\n", escLabel(svc), upVal)
 	}
 
+	// Passive clock domains (PTPv1/Dante, PTPv2, gPTP/AVB) per bridge.
+	// age_seconds growing means the domain went silent — alertable.
+	if cd := mapMap(snap, "clock_domains"); len(cd) > 0 {
+		fmt.Fprintln(&b, "# HELP stageneth_clock_domain_age_seconds Seconds since last clock-domain message")
+		fmt.Fprintln(&b, "# TYPE stageneth_clock_domain_age_seconds gauge")
+		ifaces := make([]string, 0, len(cd))
+		for iface := range cd {
+			ifaces = append(ifaces, iface)
+		}
+		sort.Strings(ifaces)
+		for _, iface := range ifaces {
+			dom, _ := cd[iface].(map[string]interface{})
+			for _, proto := range []string{"ptpv1", "ptpv2", "ptpv2_l2", "gptp"} {
+				p, _ := dom[proto].(map[string]interface{})
+				if p == nil {
+					continue
+				}
+				fmt.Fprintf(&b, "stageneth_clock_domain_age_seconds{iface=\"%s\",proto=\"%s\"} %.1f\n",
+					escLabel(iface), proto, mapFloat(p, "age_sec"))
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(b.String()))

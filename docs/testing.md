@@ -79,8 +79,9 @@ qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
 ### 3. PTP
 
 - StageNeth **ne fait pas Boundary Clock**. Le PTP doit rester sur le switch AV.
-- Vérifier que le port trunk permet les trames PTP multicasts `224.0.1.129` / `224.0.0.107`.
+- Vérifier que le port trunk permet les trames PTP multicasts `224.0.1.129` / `224.0.0.107` et les trames L2 `01:1b:19:00:00:00` / `01:80:c2:00:00:0e` (EtherType `0x88F7`, gPTP AVB/MILAN).
 - Si un grandmaster est présent, les endpoints du VLAN `ptp` doivent se synchroniser.
+- **Détection passive des domaines d'horloge** : l'onglet Monitoring → PTP affiche, par bridge `br_*`, les protocoles d'horloge réellement observés sur le fil — PTPv1 (Dante), PTPv2 (AES67/2110), gPTP (AVB/MILAN) — avec le grandmaster, le débit de sync et l'âge du dernier message. Un âge qui grandit = domaine devenu silencieux (clock perdue). Métriques : `stageneth_clock_domain_age_seconds{iface,proto}`. L'écoute est strictement passive (aucun paquet émis, `CAP_NET_RAW` requis) ; le test live `TestClockWatchLive` nécessite un conteneur privilégié ou root.
 
 ### 4. Multicast et IGMP
 

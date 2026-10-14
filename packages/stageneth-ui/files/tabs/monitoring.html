@@ -76,6 +76,18 @@
                 <p class="mb-2"><strong>État port :</strong> <span class="font-mono" :class="ptpStateClass">{{ monitoring.ptp_status?.state || 'unknown' }}</span></p>
                 <p class="mb-2"><strong>Offset from master :</strong> <span class="font-mono">{{ monitoring.ptp_status?.offset_ns != null ? monitoring.ptp_status.offset_ns.toFixed(1) + ' ns' : '-' }}</span></p>
                 <p><strong>Mean path delay :</strong> <span class="font-mono">{{ monitoring.ptp_status?.delay_ns != null ? monitoring.ptp_status.delay_ns.toFixed(1) + ' ns' : '-' }}</span></p>
+                <div v-if="clockDomains.length" class="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <p class="font-semibold mb-2">Domaines d'horloge détectés (écoute passive)</p>
+                  <div v-for="d in clockDomains" :key="d.iface" class="mb-2">
+                    <p class="font-semibold"><span class="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" :class="serviceColor(d.iface.replace(/^br_/, ''))"></span>{{ d.iface }}</p>
+                    <div v-for="p in d.protos" :key="p.key" class="pl-4 text-xs font-mono">
+                      <p>
+                        {{ p.name }} · GM <span class="font-semibold">{{ p.grandmaster || p.last_src || '?' }}</span><template v-if="p.domain != null"> · dom {{ p.domain }}</template><template v-if="p.steps_removed != null"> · {{ p.steps_removed }} sauts</template><template v-if="p.sync_hz"> · {{ p.sync_hz.toFixed(1) }} sync/s</template>
+                      </p>
+                      <p :class="p.age_sec > 30 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'">dernier message il y a {{ Math.round(p.age_sec) }}s · {{ p.count }} paquets</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </details>
 

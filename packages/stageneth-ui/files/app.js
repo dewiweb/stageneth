@@ -244,6 +244,15 @@ createApp({
       return 'text-red-600 dark:text-red-400';
     },
     mdbBridges() { return Object.keys(this.monitoring.bridge_mdb || {}); },
+    clockDomains() {
+      const cd = this.monitoring.clock_domains || {};
+      const labels = { ptpv1: 'PTPv1 (Dante)', ptpv2: 'PTPv2 (AES67/2110)', ptpv2_l2: 'PTPv2 L2', gptp: 'gPTP (AVB/MILAN)' };
+      return Object.keys(cd).sort().map(iface => ({
+        iface,
+        protos: Object.keys(cd[iface]).filter(k => k !== 'interface').sort()
+          .map(k => Object.assign({ name: labels[k] || k, key: k }, cd[iface][k]))
+      }));
+    },
     filteredLogLines() {
       let lines = this.logLines || [];
       const f = this.logFilter.toLowerCase();

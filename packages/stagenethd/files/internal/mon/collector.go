@@ -27,6 +27,9 @@ type Collector struct {
 	// Run goroutine and handler fallbacks can trigger it concurrently
 	collectMu sync.Mutex
 	stopOnce  sync.Once
+	// clockObs holds one passive PTP-domain observer per br_* interface
+	// (PTPv1/Dante, PTPv2, gPTP/802.1AS); managed on the slow cadence
+	clockObs map[string]*clockObserver
 }
 
 func NewCollector(interval, slow time.Duration) *Collector {
@@ -89,7 +92,12 @@ func (c *Collector) Run() {
 }
 
 // Stop is idempotent — safe to call from multiple shutdown paths.
-func (c *Collector) Stop() { c.stopOnce.Do(func() { close(c.stopCh) }) }
+func (c *Collector) Stop() {
+	c.stopOnce.Do(func() {
+		close(c.stopCh)
+		c.stopClockObservers()
+	})
+}
 
 func (c *Collector) collect() map[string]interface{} {
 	l1, l5, l15 := loadAvgs()
@@ -141,9 +149,13 @@ func (c *Collector) collect() map[string]interface{} {
 		"igmp_snooping":   parseIGMPSnooping(),
 		"connections":     map[string]interface{}{"current": cc, "max": cm},
 	}
+	if cd := c.clockSnapshot(); cd != nil {
+		data["clock_domains"] = cd
+	}
 
 	// exec-based collectors, on the slow cadence
 	if c.lastSlow.IsZero() || time.Since(c.lastSlow) >= c.slow {
+		c.syncClockObservers(interfaces)
 		c.slowData = map[string]interface{}{
 			"services":   serviceStatuses(),
 			"ptp_status": parsePtpStatus(),
