@@ -78,6 +78,8 @@ func TestRawPutInjection(t *testing.T) {
 		`{"section":"x'evil","type":"iface","values":{"proto":"static"}}`,
 		`{"section":"ok","type":"iface","values":{"ipaddr":"1.2.3.4\nset other.x=y"}}`,
 		`{"section":"ok","type":"iface","values":{"bad name":"v"}}`,
+		`{"section":"ok","type":"iface","values":{"desc":"a' delete network.lan"}}`,
+		`{"section":"ok","type":"iface","values":{"desc":"a\"b"}}`,
 	} {
 		req := httptest.NewRequest("PUT", "/api/v1/raw/network", strings.NewReader(body))
 		req.SetPathValue("config", "network")

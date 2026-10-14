@@ -88,11 +88,14 @@ func rawPut(w http.ResponseWriter, r *http.Request) {
 	}
 	for k, v := range req.Values {
 		val := fmt.Sprintf("%v", v)
-		if !validUciName(k) || strings.ContainsAny(val, "\r\n") {
+		// uci has no escape syntax inside quotes — reject quote chars
+		// outright and always single-quote the value so whitespace or
+		// shell-looking content can't reshape the batch directive
+		if !validUciName(k) || strings.ContainsAny(val, "\r\n'\"") {
 			respond(w, 400, nil, "invalid option name or value")
 			return
 		}
-		commands = append(commands, fmt.Sprintf("set %s.%s.%s=%v", cfg, req.Section, k, v))
+		commands = append(commands, fmt.Sprintf("set %s.%s.%s='%s'", cfg, req.Section, k, val))
 	}
 	if len(commands) == 0 {
 		respond(w, 400, nil, "nothing to write")
