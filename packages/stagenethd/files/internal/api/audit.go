@@ -12,7 +12,14 @@ import (
 // Audit log: one JSON object per line, appended to a bounded file.
 // Covers authentication and config mutations — feeds the alerts view.
 
-const auditPath = "/var/log/stageneth-audit.log"
+// auditPath is overridable for tests/recovery mounts.
+var auditPath = func() string {
+	if p := os.Getenv("STAGENETH_AUDIT_LOG"); p != "" {
+		return p
+	}
+	return "/var/log/stageneth-audit.log"
+}()
+
 const auditMaxBytes = 256 * 1024
 
 var auditMu sync.Mutex

@@ -330,6 +330,18 @@ func serviceStatuses() map[string]bool {
 
 func parsePtpStatus() map[string]interface{} {
 	out := map[string]interface{}{"state": "unknown", "offset_ns": 0.0, "delay_ns": 0.0}
+
+	// native path: PTPv2 management over ptp4l's unixgram socket
+	if ds, err := ptpMgmtRequest(midPortDataSet); err == nil {
+		out["state"] = parsePortDataSet(ds)
+		if cur, err := ptpMgmtRequest(midCurrentDataSet); err == nil {
+			out["offset_ns"], out["delay_ns"] = parseCurrentDataSet(cur)
+		}
+		return out
+	}
+
+	// fallback: pmc subprocess (kept for environments where the UDS
+	// path differs)
 	pmc := func(args ...string) ([]byte, error) {
 		return execBounded(3*time.Second, "pmc", args...)
 	}
@@ -409,15 +421,8 @@ func nicStatsIn(sysfs string) map[string]interface{} {
 	return out
 }
 
-func parseBridgeMdb() map[string]interface{} {
-	b, err := execBounded(3*time.Second, "bridge", "mdb", "show")
-	if err != nil {
-		return map[string]interface{}{}
-	}
-	return parseMdbOutput(string(b))
-}
-
 // parseMdbOutput parses `bridge mdb show` output into bridge → entries.
+// Fallback for parseBridgeMdb (netlink.go) when the netlink dump fails.
 func parseMdbOutput(text string) map[string]interface{} {
 	out := map[string]interface{}{}
 	for _, line := range strings.Split(text, "\n") {
