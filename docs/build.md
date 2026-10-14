@@ -59,6 +59,8 @@ TARGET=nanopi_r5s ./build-stageneth.sh
 Tout PC industriel fanless/DIN-rail x86-64 (OnLogic, Beckhoff, Axiomtek,
 Moxa…) exécute directement l'image `x86_64` — aucune cible dédiée n'est
 nécessaire. MikroTik RB5009 = la meilleure option pro/rackable (~220 EUR).
+Voir [docs/hardware.md](hardware.md) pour la topologie des ports RB5009
+(`p1`–`p8`, `sfp`) et la procédure de flashage BOOTP/TFTP.
 
 ⚠️ Les cibles `realtek` (switches managés) sont supportées par OpenWrt
 24.10 mais la couche switch est plus jeune — à valider sur banc réel
