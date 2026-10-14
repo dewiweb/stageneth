@@ -74,6 +74,9 @@ jobs:
 
   build:
     needs: test
+    # Full OpenWrt image builds cost ~2-3h per run — only on release
+    # tags and manual dispatch (with target picker), not every push/PR.
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
