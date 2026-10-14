@@ -12,9 +12,15 @@ import (
 	"stageneth/internal/engine"
 	"stageneth/internal/render"
 	"stageneth/internal/stcfg"
+	"stageneth/internal/ucifile"
 )
 
+// run executes a command with a hard timeout. init.d paths are remapped
+// under STAGENETH_INIT_DIR when set, so tests can stub service scripts.
 func run(name string, args ...string) error {
+	if d := os.Getenv("STAGENETH_INIT_DIR"); d != "" && strings.HasPrefix(name, "/etc/init.d/") {
+		name = filepath.Join(d, filepath.Base(name))
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	return exec.CommandContext(ctx, name, args...).Run()
@@ -112,7 +118,7 @@ func main() {
 		fmt.Println("Usage: stagenethd apply [-noreload]|preview|rollback")
 		os.Exit(1)
 	}
-	st, err := stcfg.Load("/etc/config/stageneth")
+	st, err := stcfg.Load(filepath.Join(ucifile.ConfigDir, "stageneth"))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to load stageneth config:", err)
 		os.Exit(1)

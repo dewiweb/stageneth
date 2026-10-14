@@ -6,6 +6,7 @@ import (
 	http "net/http"
 	os "os"
 	exec "os/exec"
+	"path/filepath"
 	regexp "regexp"
 	strings "strings"
 	time "time"
@@ -13,9 +14,9 @@ import (
 	"stageneth/internal/ucifile"
 )
 
-// systemConfig reads /etc/config/system via the shared parser.
+// systemConfig reads the system UCI config via the shared parser.
 func systemConfig() (*ucifile.File, error) {
-	return ucifile.Read("/etc/config/system")
+	return ucifile.Read(filepath.Join(ucifile.ConfigDir, "system"))
 }
 
 func findByType(f *ucifile.File, typ string) *ucifile.Section {
@@ -144,13 +145,13 @@ func ntpSet(w http.ResponseWriter, r *http.Request) {
 	for _, s := range servers {
 		commands = append(commands, "add_list system.ntp.server='"+s+"'")
 	}
-	cmd := exec.Command("uci", "-q", "batch")
+	cmd := uciCommand("-q", "batch")
 	cmd.Stdin = strings.NewReader(strings.Join(commands, "\n") + "\n")
 	if err := cmd.Run(); err != nil {
 		respond(w, 500, nil, "uci batch failed")
 		return
 	}
-	exec.Command("uci", "-q", "commit", "system").Run()
+	uciCommand("-q", "commit", "system").Run()
 	if _, err := os.Stat("/etc/init.d/sysntpd"); err == nil {
 		exec.Command("/etc/init.d/sysntpd", "restart").Run()
 	} else {

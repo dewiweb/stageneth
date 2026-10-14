@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"stageneth/internal/api"
 	"stageneth/internal/auth"
 	"stageneth/internal/mon"
+	"stageneth/internal/ucifile"
 )
 
 func socketPath() string {
@@ -30,7 +32,7 @@ func configPath() string {
 	if p := os.Getenv("STAGENETHD_CONFIG"); p != "" {
 		return p
 	}
-	return "/etc/config/stagenethd"
+	return filepath.Join(ucifile.ConfigDir, "stagenethd")
 }
 
 func main() {

@@ -6,6 +6,7 @@ import (
 	net "net"
 	http "net/http"
 	os "os"
+	"path/filepath"
 	regexp "regexp"
 	sort "sort"
 	strconv "strconv"
@@ -17,7 +18,7 @@ import (
 )
 
 // StagenethConfig is the source-of-truth config file path.
-var StagenethConfig = "/etc/config/stageneth"
+var StagenethConfig = filepath.Join(ucifile.ConfigDir, "stageneth")
 
 // --- validation ---------------------------------------------------------------
 
@@ -127,7 +128,7 @@ func saveStageneth(f *ucifile.File) error {
 		return err
 	}
 	// fsync the dir so the rename survives a power cut
-	if d, err := os.Open("/etc/config"); err == nil {
+	if d, err := os.Open(filepath.Dir(StagenethConfig)); err == nil {
 		d.Sync()
 		d.Close()
 	}

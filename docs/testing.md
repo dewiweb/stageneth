@@ -1,5 +1,23 @@
 # Test et validation de l'image StageNeth
 
+## Tests automatisés
+
+```bash
+# Tests unitaires Go (moteur, API, parsers, auth)
+cd packages/stagenethd/files && go test -count=1 ./...
+
+# E2E réel : démarre stageneth-api + stagenethd sur une arborescence
+# isolée (aucune dépendance OpenWrt nécessaire) et vérifie le flux
+# complet : wizard → session → ressources v1 → apply → rollback → logout
+tests/e2e/run.sh
+```
+
+Le harnais E2E utilise les variables `STAGENETH_CONFIG_DIR`,
+`STAGENETH_STATE_DIR`, `STAGENETH_INIT_DIR`, `STAGENETH_SOCKET`,
+`STAGENETHD_BIN` et `STAGENETH_RSYSLOG_CONF` pour rediriger tous les
+chemins système vers un répertoire temporaire ; les scripts init.d sont
+remplacés par des stubs qui journalisent les rechargements demandés.
+
 ## Lancer l'image avec QEMU
 
 Remplacez `0.2.0-beta.19` par la version de `build.conf` (ou prenez les images dans les [GitHub Releases](https://github.com/dewiweb/stageneth/releases)) :

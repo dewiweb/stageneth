@@ -8,6 +8,7 @@ import (
 	http "net/http"
 	os "os"
 	exec "os/exec"
+	"path/filepath"
 	regexp "regexp"
 	sort "sort"
 	"stageneth/internal/auth"
@@ -16,12 +17,21 @@ import (
 	time "time"
 )
 
+// stagenethdBin is the engine binary the API shells out to for
+// apply/preview — overridable for tests and non-standard installs.
+var stagenethdBin = func() string {
+	if b := os.Getenv("STAGENETHD_BIN"); b != "" {
+		return b
+	}
+	return "/usr/sbin/stagenethd"
+}()
+
 func applyNetwork(w http.ResponseWriter, r *http.Request) {
 	// hard bound — a hung apply would otherwise pin this handler and,
 	// via the engine flock, every subsequent apply
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "/usr/sbin/stagenethd", "apply").CombinedOutput()
+	out, err := exec.CommandContext(ctx, stagenethdBin, "apply").CombinedOutput()
 	if err != nil {
 		code := 500
 		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 3 {
@@ -44,7 +54,7 @@ func firstLine(s string) string {
 func previewNetwork(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "/usr/sbin/stagenethd", "preview").CombinedOutput()
+	out, err := exec.CommandContext(ctx, stagenethdBin, "preview").CombinedOutput()
 	if err != nil {
 		respond(w, 500, map[string]string{"log": string(out)}, "preview failed")
 		return
@@ -101,7 +111,7 @@ func backupConfig(w http.ResponseWriter, r *http.Request) {
 	out.WriteString("# StageNeth configuration backup\n")
 	fmt.Fprintf(&out, "# packages: %s\n", strings.Join(backupPackages, ", "))
 	for _, pkg := range backupPackages {
-		part, err := exec.Command("uci", "export", pkg).Output()
+		part, err := uciCommand("export", pkg).Output()
 		if err != nil {
 			fmt.Fprintf(&out, "\n# --- package %s export failed ---\n", pkg)
 			continue
@@ -126,10 +136,10 @@ func uciImport(pkg, data string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if _, err := exec.Command("uci", "import", "-f", tmpName, pkg).CombinedOutput(); err != nil {
+	if _, err := uciCommand("import", "-f", tmpName, pkg).CombinedOutput(); err != nil {
 		return err
 	}
-	_, _ = exec.Command("uci", "commit", pkg).CombinedOutput()
+	_, _ = uciCommand("commit", pkg).CombinedOutput()
 	return nil
 }
 
@@ -175,14 +185,14 @@ func restoreConfig(w http.ResponseWriter, r *http.Request) {
 	// mid-restore failure rolls back instead of leaving a mixed config
 	prev := map[string]string{}
 	for _, b := range blocks {
-		out, _ := exec.Command("uci", "export", b.name).Output()
+		out, _ := uciCommand("export", b.name).Output()
 		prev[b.name] = string(out)
 	}
 	for _, b := range blocks {
 		if err := uciImport(b.name, b.data); err != nil {
 			for p, snap := range prev {
 				if snap == "" {
-					_ = os.Remove("/etc/config/" + p) // package didn't exist before
+					_ = os.Remove(filepath.Join(ucifile.ConfigDir, p)) // package didn't exist before
 				} else {
 					_ = uciImport(p, snap) // export output includes the package header
 				}

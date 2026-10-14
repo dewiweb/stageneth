@@ -47,12 +47,21 @@ type Engine struct {
 	Avail        map[string]bool // kernel interfaces (nil → read sysfs)
 }
 
-// New returns an Engine for the live system.
+// New returns an Engine for the live system. STAGENETH_STATE_DIR and
+// STAGENETH_RSYSLOG_CONF relocate state for tests/recovery mounts.
 func New() *Engine {
+	state := os.Getenv("STAGENETH_STATE_DIR")
+	if state == "" {
+		state = "/etc/stageneth"
+	}
+	rs := rsyslogConfPath
+	if p := os.Getenv("STAGENETH_RSYSLOG_CONF"); p != "" {
+		rs = p
+	}
 	return &Engine{
-		ConfigDir:    "/etc/config",
-		ManifestPath: "/etc/stageneth/manifest.json",
-		RsyslogConf:  rsyslogConfPath,
+		ConfigDir:    ucifile.ConfigDir,
+		ManifestPath: filepath.Join(state, "manifest.json"),
+		RsyslogConf:  rs,
 	}
 }
 
@@ -388,13 +397,17 @@ func (e *Engine) SaveLastGood(s *Snapshot) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	index := map[string]string{}
+	type lastGoodEntry struct {
+		Path    string `json:"path"`
+		Existed bool   `json:"existed"`
+	}
+	index := map[string]lastGoodEntry{}
 	for p, b := range s.files {
+		base := filepath.Base(p)
+		index[base] = lastGoodEntry{Path: p, Existed: b.existed}
 		if !b.existed {
 			continue
 		}
-		base := filepath.Base(p)
-		index[base] = p
 		if err := writeFileAtomic(filepath.Join(dir, base), b.content, 0600); err != nil {
 			return err
 		}
@@ -402,7 +415,8 @@ func (e *Engine) SaveLastGood(s *Snapshot) error {
 	if entries, err := os.ReadDir(dir); err == nil {
 		for _, en := range entries {
 			if en.Name() != "index.json" {
-				if _, ok := index[en.Name()]; !ok {
+				e, ok := index[en.Name()]
+				if !ok || !e.Existed {
 					os.Remove(filepath.Join(dir, en.Name()))
 				}
 			}
@@ -426,23 +440,35 @@ func (e *Engine) Rollback() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no last-good snapshot: %w", err)
 	}
-	var index map[string]string
+	var index map[string]struct {
+		Path    string `json:"path"`
+		Existed bool   `json:"existed"`
+	}
 	if err := json.Unmarshal(jb, &index); err != nil {
 		return nil, fmt.Errorf("corrupt last-good index: %w", err)
 	}
 	var restored []string
 	var errs []string
-	for base, live := range index {
+	for base, ent := range index {
+		if !ent.Existed {
+			// apply created this file — rollback removes it
+			if err := os.Remove(ent.Path); err != nil && !os.IsNotExist(err) {
+				errs = append(errs, ent.Path+": remove")
+				continue
+			}
+			restored = append(restored, ent.Path)
+			continue
+		}
 		b, err := os.ReadFile(filepath.Join(dir, base))
 		if err != nil {
 			errs = append(errs, base+": read")
 			continue
 		}
-		if err := writeFileAtomic(live, b, 0644); err != nil {
-			errs = append(errs, live+": write")
+		if err := writeFileAtomic(ent.Path, b, 0644); err != nil {
+			errs = append(errs, ent.Path+": write")
 			continue
 		}
-		restored = append(restored, live)
+		restored = append(restored, ent.Path)
 	}
 	if len(errs) > 0 {
 		return restored, fmt.Errorf("partial rollback: %s", strings.Join(errs, "; "))

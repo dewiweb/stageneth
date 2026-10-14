@@ -235,8 +235,10 @@ func TestLastGoodRollback(t *testing.T) {
 	if string(after) != string(before) {
 		t.Error("rollback did not restore pre-apply content")
 	}
-	// firewall didn't exist at snapshot time → not in index → still garbage
-	// (rollback restores what existed; engine reconciles the rest next apply)
+	// firewall didn't exist at snapshot time → rollback removes it
+	if _, err := os.Stat(filepath.Join(e.ConfigDir, "firewall")); !os.IsNotExist(err) {
+		t.Error("rollback should remove apply-created files")
+	}
 }
 
 func TestRollbackNoSnapshot(t *testing.T) {

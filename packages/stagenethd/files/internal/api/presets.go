@@ -229,7 +229,7 @@ func applyPresetToUci(name string, services []string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	out2, err := exec.CommandContext(ctx, "/usr/sbin/stagenethd", "apply").CombinedOutput()
+	out2, err := exec.CommandContext(ctx, stagenethdBin, "apply").CombinedOutput()
 	return string(out2), err
 }
 

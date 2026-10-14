@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// ConfigDir is the root directory holding UCI files (normally
+// /etc/config). Overridable via STAGENETH_CONFIG_DIR so the daemons and
+// tests can run against an isolated config tree.
+var ConfigDir = func() string {
+	if d := os.Getenv("STAGENETH_CONFIG_DIR"); d != "" {
+		return d
+	}
+	return "/etc/config"
+}()
+
 // Option is a single UCI option or list item.
 type Option struct {
 	Name  string

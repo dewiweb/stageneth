@@ -5,6 +5,7 @@ import (
 	http "net/http"
 	exec "os/exec"
 	regexp "regexp"
+	"stageneth/internal/ucifile"
 	strings "strings"
 )
 
@@ -15,6 +16,12 @@ var rawConfigs = map[string]bool{
 }
 
 var uciNameRe = regexp.MustCompile(`^[a-zA-Z0-9_@.\[\]-]+$`)
+
+// uciCommand wraps exec.Command("uci", ...) pinning the config dir so the
+// daemon can run against a non-/etc/config tree (tests, recovery mounts).
+func uciCommand(args ...string) *exec.Cmd {
+	return exec.Command("uci", append([]string{"-c", ucifile.ConfigDir}, args...)...)
+}
 
 func validUciName(s string) bool {
 	return s != "" && uciNameRe.MatchString(s)
@@ -33,7 +40,7 @@ func rawGet(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, "config not writable via raw API")
 		return
 	}
-	out, err := exec.Command("uci", "-q", "show", cfg).Output()
+	out, err := uciCommand("-q", "show", cfg).Output()
 	if err != nil {
 		respond(w, 500, nil, "uci show failed")
 		return
@@ -44,12 +51,12 @@ func rawGet(w http.ResponseWriter, r *http.Request) {
 // rawCommit runs `uci commit <config>` plus the system reload side-effects
 // the legacy uciCommit endpoint had.
 func rawCommit(cfg string) error {
-	if err := exec.Command("uci", "-q", "commit", cfg).Run(); err != nil {
+	if err := uciCommand("-q", "commit", cfg).Run(); err != nil {
 		return err
 	}
 	if cfg == "system" {
 		exec.Command("/etc/init.d/system", "reload").Run()
-		if name, err := exec.Command("uci", "-q", "get", "system.@system[0].hostname").Output(); err == nil && len(name) > 0 {
+		if name, err := uciCommand("-q", "get", "system.@system[0].hostname").Output(); err == nil && len(name) > 0 {
 			exec.Command("hostname", strings.TrimSpace(string(name))).Run()
 		}
 	}
@@ -101,7 +108,7 @@ func rawPut(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, "nothing to write")
 		return
 	}
-	cmd := exec.Command("uci", "-q", "batch")
+	cmd := uciCommand("-q", "batch")
 	cmd.Stdin = strings.NewReader(strings.Join(commands, "\n") + "\n")
 	if err := cmd.Run(); err != nil {
 		respond(w, 500, nil, "uci batch failed")
@@ -127,7 +134,7 @@ func rawDelete(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, "invalid section name")
 		return
 	}
-	cmd := exec.Command("uci", "-q", "batch")
+	cmd := uciCommand("-q", "batch")
 	cmd.Stdin = strings.NewReader(fmt.Sprintf("delete %s.%s\n", cfg, section))
 	if err := cmd.Run(); err != nil {
 		respond(w, 500, nil, "uci batch failed")
