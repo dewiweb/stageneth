@@ -35,7 +35,7 @@ define Package/stagenethd/description
 	serves the management REST endpoints on a unix socket behind nginx.
 endef
 
-GO_ARCH:=amd64
+GO_ARCH:=
 ifeq ($(ARCH),x86_64)
 GO_ARCH:=amd64
 endif
@@ -59,6 +59,14 @@ GO_ARCH:=mips64
 endif
 ifeq ($(ARCH),mips64el)
 GO_ARCH:=mips64le
+endif
+ifeq ($(ARCH),riscv64)
+GO_ARCH:=riscv64
+endif
+# No silent amd64 fallback — an unmapped target would ship a
+# wrong-arch binary that looks like a successful build.
+ifeq ($(GO_ARCH),)
+$(error stagenethd: no Go arch mapping for OpenWrt ARCH=$(ARCH))
 endif
 
 define Build/Prepare

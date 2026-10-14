@@ -36,3 +36,5 @@
 /packages/stagenethd/files/stageneth-api
 /packages/stagenethd/files/stagenethd
 build-logs/
+/.build/
+/build.conf

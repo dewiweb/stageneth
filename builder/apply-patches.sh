@@ -28,5 +28,7 @@ find patches -type f -name '*.patch' | sort | while read -r patch; do
             ;;
     esac
     echo "Applying $patch to $target"
-    (cd "$target" && patch -p1 -f) < "$patch" || true
+    # a patch that doesn't apply must fail the build — silently
+    # shipping an unpatched image is worse than no image
+    (cd "$target" && patch -p1 -f) < "$patch" || { echo "FAILED: $patch"; exit 1; }
 done

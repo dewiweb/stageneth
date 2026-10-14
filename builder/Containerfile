@@ -55,12 +55,15 @@ USER buildbot
 WORKDIR /home/buildbot
 
 ARG OWRT_VERSION
-RUN git clone --branch "${OWRT_VERSION}" https://github.com/openwrt/openwrt.git
+RUN git clone --depth 1 --branch "${OWRT_VERSION}" https://github.com/openwrt/openwrt.git
 WORKDIR /home/buildbot/openwrt
 
 RUN ./scripts/feeds update -a
-COPY --chmod=777 builder/apply-patches.sh /usr/local/bin/apply-patches
-RUN /usr/local/bin/apply-patches || true
+COPY --chmod=755 builder/apply-patches.sh /usr/local/bin/apply-patches
+# patches/ carries optional OpenWrt/feed patches (see patches/.gitkeep);
+# a non-applying patch fails the build loudly.
+COPY --chown=buildbot:buildbot patches patches/
+RUN /usr/local/bin/apply-patches
 
 RUN sed -i '1isrc-link stageneth /home/buildbot/openwrt/stageneth-packages' feeds.conf.default
 COPY --chown=buildbot:buildbot packages stageneth-packages/
@@ -74,9 +77,9 @@ ARG REPO_CHANNEL
 ARG TARGET
 ARG STAGENETH_VERSION
 ARG BUILD_SEMVER_SUFFIX
-COPY --chmod=777 builder/configure-build.sh /usr/local/bin/configure-build
+COPY --chmod=755 builder/configure-build.sh /usr/local/bin/configure-build
 RUN /usr/local/bin/configure-build
-COPY --chmod=777 builder/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=755 builder/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 ENTRYPOINT [ "/usr/local/bin/entrypoint.sh" ]
 
