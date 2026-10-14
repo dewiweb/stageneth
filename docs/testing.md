@@ -41,10 +41,10 @@ qemu-system-x86_64 -m 1024 -smp 2 -enable-kvm \
 
 - **UI** : `https://192.168.1.1/`
   Avec le forward QEMU : `https://localhost:8443/`
-- **SSH** : `ssh -p 2222 root@localhost`
-- **Mot de passe root test** : `stageneth`
-
-> **Avertissement sécurité** : le mot de passe `stageneth` est un mot de passe de test/documentaire. En production, changez-le dès le premier lancement.
+- **SSH** : `ssh -p 2222 root@localhost` — le mot de passe root/console
+  est celui choisi dans le wizard de premier démarrage (il provisionne
+  le compte web `admin` et le compte console en même temps). SSH reste
+  inutilisable tant que le wizard n'a pas été complété.
 
 ## Vérifications générales
 

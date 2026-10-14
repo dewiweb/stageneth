@@ -12,7 +12,7 @@ StageNeth intègre une interface web Vue 3, une API Go et un orchestrateur rése
 ## Fonctionnalités
 
 - **Interface web Vue 3** en HTTPS avec deux niveaux d'accès : mode simple (opérateur) et mode expert (tech)
-- **API Go** sécurisée par JWT
+- **API Go** sécurisée par sessions (cookie HttpOnly + SameSite=Strict, mots de passe argon2id, rôles opérateur/tech)
 - **Orchestration réseau Go** : génération automatique des VLANs 802.1q, bridges, firewall, DHCP, QoS/NIC tuning, et PTP
 - **Configuration par service** : chaque protocole (Dante, NDI, AES67/RAVENNA, ST 2110, Art-Net, sACN, PTP, AVB, NMOS, MA-Net/Proprietary...) a son propre VLAN, son DSCP, sa priorité et son MTU
 - **Trunk AV configurable** (`eth1` par défaut) et **interface dédiée ST 2110** (`eth2`) en jumbo frames (MTU 9000)
@@ -73,7 +73,7 @@ Voir [docs/testing.md](docs/testing.md) pour le plan de validation complet (PTP,
 
 ## Notes
 
-- L'image de test définit un mot de passe root connu (`stageneth`) et génère un secret JWT aléatoire au premier démarrage. **En production, changez impérativement ce mot de passe dès le premier lancement** via `Paramètres > Credentials` ou en SSH avec `passwd`.
+- Aucun mot de passe n'est intégré à l'image : le wizard de premier démarrage (HTTPS) provisionne à la fois le compte web `admin` et le mot de passe console root. SSH reste inutilisable tant que le wizard n'a pas été complété.
 - Le répertoire `openwrt/` est un arbre de build complet et est ignoré par git.
 
 ## Licence
