@@ -37,7 +37,11 @@ var monMethods = {
       if (!this.monitoringPolling) return;
       this.monitoringTimeout = null;
       await this.fetchMonitoring();
-      if (this.monitoringPolling) this.monitoringTimeout = setTimeout(() => this.pollMonitoring(), 5000);
+      if (!this.monitoringPolling) return;
+      // try to get back on SSE — if the stream reconnects it owns the
+      // updates and polling stops; otherwise keep the 5s fallback cycle
+      if (!this.evtSource && window.EventSource) this.startEvents();
+      if (!this.evtSource) this.monitoringTimeout = setTimeout(() => this.pollMonitoring(), 5000);
     },
     async pollAlerts() {
       if (!this.monitoringPolling) return;

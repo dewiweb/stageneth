@@ -1,4 +1,9 @@
 location /api/ {
+    # this file lands in every nginx server block (http _lan + https
+    # _ssl) — never serve the API over plaintext, credentials included
+    if ($scheme = http) {
+        return 403;
+    }
     proxy_pass http://unix:/var/run/stageneth-api.sock:;
     proxy_http_version 1.1;
     proxy_set_header Host $host;

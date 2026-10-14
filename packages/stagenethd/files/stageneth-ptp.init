@@ -23,7 +23,9 @@ start_service() {
     for svc in $ptp_services; do
         local vlan
         vlan=$(uci get stageneth."$svc".vlan_id 2>/dev/null)
-        [ -n "$vlan" ] && procd_append_param command -i "$trunk.$vlan"
+        # ptp4l takes interfaces as positional args — a repeated -i
+        # option would keep only the last one
+        [ -n "$vlan" ] && procd_append_param command "$trunk.$vlan"
     done
     procd_set_param respawn
     procd_close_instance

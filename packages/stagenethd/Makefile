@@ -21,6 +21,13 @@ define Package/stagenethd
 	DEPENDS:=+firewall4 +ethtool +tcpdump +snmpd +rsyslog +umdns +mdns-repeater +linuxptp +nginx-ssl +ip-bridge +mdnsresponder
 endef
 
+define Package/stagenethd/conffiles
+/etc/config/stageneth
+/etc/config/stagenethd
+/etc/stageneth/
+/etc/rsyslog.conf
+endef
+
 define Package/stagenethd/description
 	Desired-state configuration engine and management API for StageNeth:
 	renders UCI config for network, firewall, DHCP and logging from
@@ -71,7 +78,9 @@ endef
 define Package/stagenethd/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/config $(1)/etc/config/stageneth
-	$(INSTALL_CONF) ./files/config.api $(1)/etc/config/stagenethd
+	# stagenethd holds argon2id password hashes — install 0600, not 0644
+	$(INSTALL_DATA) ./files/config.api $(1)/etc/config/stagenethd
+	chmod 0600 $(1)/etc/config/stagenethd
 
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/stagenethd $(1)/usr/sbin/
