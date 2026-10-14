@@ -1,11 +1,15 @@
 package api
 
 import (
+	"context"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"stageneth/internal/mon"
 )
 
 func v1Env(t *testing.T) string {
@@ -191,5 +195,39 @@ func TestV1BindingValidation(t *testing.T) {
 	h(rr, req)
 	if rr.Code != 200 {
 		t.Fatalf("binding: %d %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestV1EventsStreamsSnapshot(t *testing.T) {
+	InitMonitor(mon.NewCollector(time.Hour, time.Hour))
+	t.Cleanup(func() { InitMonitor(nil) })
+	old := sseTick
+	sseTick = 10 * time.Millisecond
+	t.Cleanup(func() { sseTick = old })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req := httptest.NewRequest("GET", "/api/v1/events", nil).WithContext(ctx)
+	rr := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() { v1Events(rr, req); close(done) }()
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	<-done
+	// regression: collected_at is int64 — a float64-only accessor left the
+	// "changed" predicate permanently false and SSE never pushed a frame
+	if !strings.Contains(rr.Body.String(), "data: ") {
+		t.Fatalf("no SSE frame pushed: %q", rr.Body.String())
+	}
+	if ct := rr.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("content-type %q", ct)
+	}
+}
+
+func TestMapFloatNumericKinds(t *testing.T) {
+	m := map[string]interface{}{"f": 1.5, "i64": int64(7), "u64": uint64(8), "i": 9}
+	for k, want := range map[string]float64{"f": 1.5, "i64": 7, "u64": 8, "i": 9} {
+		if got := mapFloat(m, k); got != want {
+			t.Errorf("mapFloat(%s) = %v, want %v", k, got, want)
+		}
 	}
 }

@@ -139,7 +139,7 @@ func (c *Collector) collect() map[string]interface{} {
 		"nic_stats":       parseNicStats(),
 		"igmp_groups":     parseIGMP(),
 		"igmp_snooping":   parseIGMPSnooping(),
-		"connections":     map[string]uint64{"current": cc, "max": cm},
+		"connections":     map[string]interface{}{"current": cc, "max": cm},
 	}
 
 	// exec-based collectors, on the slow cadence

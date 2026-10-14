@@ -420,6 +420,9 @@ func v1SetLogging(w http.ResponseWriter, r *http.Request) {
 
 // --- SSE -----------------------------------------------------------------------
 
+// sseTick is the push cadence for v1Events; a var so tests can shorten it.
+var sseTick = 5 * time.Second
+
 // v1Events streams monitoring snapshots as Server-Sent Events.
 func v1Events(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
@@ -433,7 +436,7 @@ func v1Events(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	tick := time.NewTicker(5 * time.Second)
+	tick := time.NewTicker(sseTick)
 	defer tick.Stop()
 	var lastTS float64
 	for {

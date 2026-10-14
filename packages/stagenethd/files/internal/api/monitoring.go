@@ -37,13 +37,24 @@ func monitoringSummary(w http.ResponseWriter, r *http.Request) {
 // --- typed accessors over the snapshot map ------------------------------------
 
 func mapFloat(m map[string]interface{}, k string) float64 {
-	v, _ := m[k].(float64)
-	return v
+	switch v := m[k].(type) {
+	case float64:
+		return v
+	case int64:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	case int:
+		return float64(v)
+	}
+	return 0
 }
 func mapUint(m map[string]interface{}, k string) uint64 {
 	switch v := m[k].(type) {
 	case uint64:
 		return v
+	case int64:
+		return uint64(v)
 	case int:
 		return uint64(v)
 	case float64:
