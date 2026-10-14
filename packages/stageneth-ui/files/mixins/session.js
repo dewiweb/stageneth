@@ -75,9 +75,7 @@ var sessionMethods = {
         this.isLoading = false;
       }
     },
-    async resetWizard() {
-      this.toast('Le wizard ne peut pas être relancé. Utilisez l\'onglet Réseau pour ré-appliquer un preset.', 'error');
-    },    async skipWizard() {
+    async skipWizard() {
       if (this.wizardPassword.length < 8) { this.error = 'Mot de passe trop court'; return; }
       if (this.wizardPassword !== this.wizardConfirmPassword) { this.error = 'Les mots de passe ne correspondent pas'; return; }
       if (!confirm('Ignorer le wizard ? Aucun preset ne sera appliqué.')) return;

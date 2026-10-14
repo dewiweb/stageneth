@@ -160,14 +160,5 @@ var toolsMethods = {
       localStorage.setItem('stageneth_simple', this.simpleMode);
       if (!this.visibleTabs.includes(this.currentTab)) this.currentTab = 'simple';
       this.mobileMenuOpen = false;
-    },
-    toggleDark() {
-      this.isDark = !this.isDark;
-      localStorage.setItem('stageneth_theme', this.isDark ? 'dark' : 'light');
-      if (this.isDark) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
     }
 };
