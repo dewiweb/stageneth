@@ -123,7 +123,15 @@ func saveStageneth(f *ucifile.File) error {
 	if err := w.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, StagenethConfig)
+	if err := os.Rename(tmp, StagenethConfig); err != nil {
+		return err
+	}
+	// fsync the dir so the rename survives a power cut
+	if d, err := os.Open("/etc/config"); err == nil {
+		d.Sync()
+		d.Close()
+	}
+	return nil
 }
 
 func findSection(f *ucifile.File, typ, name string) *ucifile.Section {

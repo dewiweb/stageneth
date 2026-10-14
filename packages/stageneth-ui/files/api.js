@@ -12,8 +12,10 @@ var api = async (path, method, body) => {
     const preview = text.substring(0, 120).replace(/\n/g, ' ');
     throw new Error(`API ${path} status ${res.status}: non-JSON response: ${preview}`);
   }
-  if (res.status === 401) {
-    // session expired or missing -> back to the login screen
+  if (res.status === 401 && !path.endsWith('/session')) {
+    // session expired or missing -> back to the login screen.
+    // /session itself returns 401 for bad credentials — let the
+    // caller show that error instead of silently reloading
     window.location.reload();
     return;
   }

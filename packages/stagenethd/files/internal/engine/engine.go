@@ -88,19 +88,50 @@ func legacyManaged(name string, st *stcfg.Config) bool {
 	return false
 }
 
-func (e *Engine) saveManifest(m manifest) {
-	os.MkdirAll(filepath.Dir(e.ManifestPath), 0755)
-	if b, err := json.MarshalIndent(m, "", "  "); err == nil {
-		writeFileAtomic(e.ManifestPath, b, 0644)
-	}
-}
-
-func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, perm); err != nil {
+func (e *Engine) saveManifest(m manifest) error {
+	if err := os.MkdirAll(filepath.Dir(e.ManifestPath), 0755); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	b, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(e.ManifestPath, b, 0644)
+}
+
+// writeFileAtomic writes via tmp+fsync+rename and fsyncs the directory —
+// durable across a power cut, which matters on an appliance that can be
+// unplugged mid-apply.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp := path + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	// fsync the parent dir so the rename itself is durable
+	if d, err := os.Open(filepath.Dir(path)); err == nil {
+		d.Sync()
+		d.Close()
+	}
+	return nil
 }
 
 // lock serializes concurrent applies (API request, procd trigger, CLI)
@@ -459,6 +490,12 @@ func (e *Engine) Apply(st *stcfg.Config) ([]string, *Snapshot, error) {
 			changed = append(changed, "rsyslog")
 		}
 	}
-	e.saveManifest(mf)
+	// the manifest must record every generated section — if it can't be
+	// written, the configs we just wrote would become untracked "user"
+	// sections next apply, so roll the whole thing back
+	if err := e.saveManifest(mf); err != nil {
+		rerr := e.Restore(snap)
+		return nil, nil, fmt.Errorf("manifest write: %w (rollback: %v)", err, rerr)
+	}
 	return changed, snap, nil
 }

@@ -95,7 +95,14 @@ func (u *Users) save(f *ucifile.File) error {
 	if err := b.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, u.path)
+	if err := os.Rename(tmp, u.path); err != nil {
+		return err
+	}
+	if d, err := os.Open(filepath.Dir(u.path)); err == nil {
+		d.Sync()
+		d.Close()
+	}
+	return nil
 }
 
 // HasUsers reports whether at least one user exists (firstboot detection).
