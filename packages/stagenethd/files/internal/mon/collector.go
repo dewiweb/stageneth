@@ -22,6 +22,10 @@ type Collector struct {
 	prevIdle uint64
 	prevTot  uint64
 	stopCh   chan struct{}
+	// collectMu serializes collect() — it mutates sampler state
+	// (prevIdle/prevTot/slowData) outside the data mutex, and both the
+	// Run goroutine and handler fallbacks can trigger it concurrently
+	collectMu sync.Mutex
 }
 
 func NewCollector(interval, slow time.Duration) *Collector {
@@ -55,6 +59,8 @@ func (c *Collector) History(n int) []map[string]interface{} {
 
 // CollectNow runs one collection cycle synchronously.
 func (c *Collector) CollectNow() map[string]interface{} {
+	c.collectMu.Lock()
+	defer c.collectMu.Unlock()
 	snap := c.collect()
 	c.mu.Lock()
 	c.latest = snap
