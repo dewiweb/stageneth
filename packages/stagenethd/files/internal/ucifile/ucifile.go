@@ -155,8 +155,16 @@ func (f *File) Get(name string) *Section {
 	return nil
 }
 
-// quote renders a value for emission.
+// quote renders a value for emission. UCI values are single-line —
+// embedded newlines/carriage returns are replaced so a hostile value
+// can never break out of its line and inject directives.
 func quote(v string) string {
+	v = strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' {
+			return ' '
+		}
+		return r
+	}, v)
 	if strings.Contains(v, "'") {
 		return `"` + strings.ReplaceAll(v, `"`, `\"`) + `"`
 	}
