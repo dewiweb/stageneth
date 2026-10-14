@@ -231,3 +231,40 @@ func TestMapFloatNumericKinds(t *testing.T) {
 		}
 	}
 }
+
+func TestRawPutCommands(t *testing.T) {
+	cmds, err := rawPutCommands("dhcp", "lan", "", map[string]interface{}{
+		"server": []interface{}{"8.8.8.8", "1.1.1.1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(cmds, "\n")
+	if !strings.Contains(joined, "delete dhcp.lan.server") ||
+		!strings.Contains(joined, "add_list dhcp.lan.server='8.8.8.8'") ||
+		!strings.Contains(joined, "add_list dhcp.lan.server='1.1.1.1'") {
+		t.Fatalf("list commands wrong: %v", cmds)
+	}
+	if _, err := rawPutCommands("dhcp", "lan", "", map[string]interface{}{".type": "x"}); err == nil {
+		t.Error("dot-prefixed option name accepted — produces 'set dhcp.lan..type='")
+	}
+	if _, err := rawPutCommands("dhcp", "lan", "", map[string]interface{}{"x": []interface{}{"a'b"}}); err == nil {
+		t.Error("list value with quote accepted")
+	}
+	if _, err := rawPutCommands("dhcp", "lan", "@bad[0]", nil); err == nil {
+		t.Error("anonymous-ref style accepted as section type")
+	}
+}
+
+func TestParseUciShowLists(t *testing.T) {
+	out := "dhcp.lan=dhcp\ndhcp.lan.server='8.8.8.8'\ndhcp.lan.server='1.1.1.1'\ndhcp.lan.leasetime='12h'\n"
+	v := parseUciShow(out)
+	lan := v["lan"].(map[string]interface{})
+	list, ok := lan["server"].([]interface{})
+	if !ok || len(list) != 2 || list[0] != "8.8.8.8" || list[1] != "1.1.1.1" {
+		t.Fatalf("list not preserved: %v", lan["server"])
+	}
+	if lan["leasetime"] != "12h" {
+		t.Fatalf("scalar corrupted: %v", lan["leasetime"])
+	}
+}

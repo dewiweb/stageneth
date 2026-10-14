@@ -16,7 +16,10 @@ var rawConfigs = map[string]bool{
 	"network": true, "dhcp": true, "firewall": true, "system": true,
 }
 
+// section names may be anonymous references like @system[0]; option names
+// cannot — `set cfg.sec..x=v` would produce a malformed batch directive.
 var uciNameRe = regexp.MustCompile(`^[a-zA-Z0-9_@.\[\]-]+$`)
+var uciOptRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // uciCommand wraps exec.Command("uci", ...) pinning the config dir so the
 // daemon can run against a non-/etc/config tree (tests, recovery mounts).
@@ -64,6 +67,48 @@ func rawCommit(cfg string) error {
 	return nil
 }
 
+// rawPutCommands builds the uci batch directives for a section write.
+// Scalar values become `set`; JSON arrays become `delete` + `add_list` per
+// element (UCI list semantics — `set` on an existing list would silently
+// collapse it to a single-value option).
+func rawPutCommands(cfg, section, stype string, values map[string]interface{}) ([]string, error) {
+	commands := []string{}
+	if stype != "" {
+		if !uciOptRe.MatchString(stype) {
+			return nil, fmt.Errorf("invalid section type")
+		}
+		commands = append(commands, fmt.Sprintf("set %s.%s=%s", cfg, section, stype))
+	}
+	for k, v := range values {
+		if !uciOptRe.MatchString(k) {
+			return nil, fmt.Errorf("invalid option name")
+		}
+		if list, ok := v.([]interface{}); ok {
+			commands = append(commands, fmt.Sprintf("delete %s.%s.%s", cfg, section, k))
+			for _, item := range list {
+				val := fmt.Sprintf("%v", item)
+				if strings.ContainsAny(val, "\r\n'\"") {
+					return nil, fmt.Errorf("invalid list value")
+				}
+				commands = append(commands, fmt.Sprintf("add_list %s.%s.%s='%s'", cfg, section, k, val))
+			}
+			continue
+		}
+		val := fmt.Sprintf("%v", v)
+		// uci has no escape syntax inside quotes — reject quote chars
+		// outright and always single-quote the value so whitespace or
+		// shell-looking content can't reshape the batch directive
+		if strings.ContainsAny(val, "\r\n'\"") {
+			return nil, fmt.Errorf("invalid option value")
+		}
+		commands = append(commands, fmt.Sprintf("set %s.%s.%s='%s'", cfg, section, k, val))
+	}
+	if len(commands) == 0 {
+		return nil, fmt.Errorf("nothing to write")
+	}
+	return commands, nil
+}
+
 // rawPut creates or replaces a section: {section, type, values}.
 // `type` may be "" to rename-in-place semantics? No: type is required when
 // creating; for existing sections it may be "" to keep the current type.
@@ -86,27 +131,9 @@ func rawPut(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, "invalid section name")
 		return
 	}
-	commands := []string{}
-	if req.Type != "" {
-		if !validUciName(req.Type) {
-			respond(w, 400, nil, "invalid section type")
-			return
-		}
-		commands = append(commands, fmt.Sprintf("set %s.%s=%s", cfg, req.Section, req.Type))
-	}
-	for k, v := range req.Values {
-		val := fmt.Sprintf("%v", v)
-		// uci has no escape syntax inside quotes — reject quote chars
-		// outright and always single-quote the value so whitespace or
-		// shell-looking content can't reshape the batch directive
-		if !validUciName(k) || strings.ContainsAny(val, "\r\n'\"") {
-			respond(w, 400, nil, "invalid option name or value")
-			return
-		}
-		commands = append(commands, fmt.Sprintf("set %s.%s.%s='%s'", cfg, req.Section, k, val))
-	}
-	if len(commands) == 0 {
-		respond(w, 400, nil, "nothing to write")
+	commands, err := rawPutCommands(cfg, req.Section, req.Type, req.Values)
+	if err != nil {
+		respond(w, 400, nil, err.Error())
 		return
 	}
 	cmd := uciCommand("-q", "batch")
@@ -168,7 +195,20 @@ func parseUciShow(output string) map[string]interface{} {
 		if len(parts) == 2 {
 			sections[section].(map[string]interface{})[".type"] = value
 		} else {
-			sections[section].(map[string]interface{})[parts[2]] = value
+			sec := sections[section].(map[string]interface{})
+			k := parts[2]
+			// uci lists emit one line per element — keep them all so the
+			// expert view can round-trip without collapsing the list
+			if prev, exists := sec[k]; exists {
+				switch l := prev.(type) {
+				case []interface{}:
+					sec[k] = append(l, value)
+				default:
+					sec[k] = []interface{}{prev, value}
+				}
+			} else {
+				sec[k] = value
+			}
 		}
 	}
 	return sections
