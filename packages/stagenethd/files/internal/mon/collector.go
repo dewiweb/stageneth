@@ -134,6 +134,7 @@ func (c *Collector) collect() map[string]interface{} {
 		"interface_addrs": addrs,
 		"dhcp_leases":     parseDHCPLeases(),
 		"service_traffic": serviceTraffic,
+		"nic_stats":       parseNicStats(),
 		"igmp_groups":     parseIGMP(),
 		"igmp_snooping":   parseIGMPSnooping(),
 		"connections":     map[string]uint64{"current": cc, "max": cm},
@@ -144,7 +145,6 @@ func (c *Collector) collect() map[string]interface{} {
 		c.slowData = map[string]interface{}{
 			"services":   serviceStatuses(),
 			"ptp_status": parsePtpStatus(),
-			"nic_stats":  parseEthtoolStats(),
 			"bridge_mdb": parseBridgeMdb(),
 		}
 		c.lastSlow = time.Now()

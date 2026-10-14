@@ -32,7 +32,7 @@
                 </div>
                 <div v-if="snmpQuery.version === 'v3'">
                   <label class="block text-xs text-slate-500 mb-1">Auth password</label>
-                  <input v-model="snmpQuery.authPass" type="password" placeholder="auth" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                  <input v-model="snmpQuery.authPass" type="password" autocomplete="off" placeholder="auth" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
                 </div>
                 <div v-if="snmpQuery.version === 'v3'">
                   <label class="block text-xs text-slate-500 mb-1">Priv protocol</label>
@@ -40,7 +40,7 @@
                 </div>
                 <div v-if="snmpQuery.version === 'v3'">
                   <label class="block text-xs text-slate-500 mb-1">Priv password</label>
-                  <input v-model="snmpQuery.privPass" type="password" placeholder="priv" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
+                  <input v-model="snmpQuery.privPass" type="password" autocomplete="off" placeholder="priv" class="w-full p-2 border rounded dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" />
                 </div>
                 <div v-if="snmpQuery.version === 'v3'">
                   <label class="block text-xs text-slate-500 mb-1">Sécurité</label>

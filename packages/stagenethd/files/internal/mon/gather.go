@@ -295,17 +295,35 @@ func execBounded(timeout time.Duration, name string, args ...string) ([]byte, er
 	return exec.CommandContext(ctx, name, args...).CombinedOutput()
 }
 
-func serviceStatuses() map[string]bool {
-	out := map[string]bool{}
-	for _, svc := range []string{"network", "firewall", "dnsmasq", "stageneth-api", "nginx"} {
-		if svc == "firewall" {
-			b, _ := execBounded(3*time.Second, "/etc/init.d/firewall", "status")
-			out[svc] = strings.TrimSpace(string(b)) == "active"
+// procCommRunning reports whether any process has the given comm name —
+// zero forks, unlike /etc/init.d/* running checks.
+func procCommRunning(comm string) bool {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() || e.Name()[0] < '0' || e.Name()[0] > '9' {
 			continue
 		}
-		_, err := execBounded(3*time.Second, "/etc/init.d/"+svc, "running")
-		out[svc] = err == nil
+		if b, err := os.ReadFile("/proc/" + e.Name() + "/comm"); err == nil &&
+			strings.TrimSpace(string(b)) == comm {
+			return true
+		}
 	}
+	return false
+}
+
+func serviceStatuses() map[string]bool {
+	out := map[string]bool{
+		"network":       procCommRunning("netifd"),
+		"dnsmasq":       procCommRunning("dnsmasq"),
+		"nginx":         procCommRunning("nginx"),
+		"stageneth-api": true, // trivially running — it served this request
+	}
+	// fw4 has no persistent process — ask its init script (bounded)
+	b, _ := execBounded(3*time.Second, "/etc/init.d/firewall", "status")
+	out["firewall"] = strings.TrimSpace(string(b)) == "active"
 	return out
 }
 
@@ -345,18 +363,25 @@ func parsePtpStatus() map[string]interface{} {
 	return out
 }
 
-func parseEthtoolStats() map[string]interface{} {
+// sysfsCounters are the error/drop counters exposed per-interface under
+// /sys/class/net/<if>/statistics/ — same data as `ethtool -S` for the
+// generic set, read with zero forks.
+var sysfsCounters = []string{
+	"rx_errors", "tx_errors", "rx_dropped", "tx_dropped",
+	"rx_crc_errors", "rx_length_errors", "rx_over_errors",
+	"rx_frame_errors", "rx_missed_errors", "rx_no_buffer_count",
+	"rx_align_errors", "tx_carrier_errors", "tx_aborted_errors",
+	"collisions", "multicast",
+}
+
+// parseNicStats reads interface error counters from sysfs. Replaces the
+// old `ethtool -S` subprocess sweep — sysfs is the kernel source ethtool
+// reports for the generic counter set anyway.
+func parseNicStats() map[string]interface{} {
 	out := map[string]interface{}{}
 	entries, err := os.ReadDir("/sys/class/net")
 	if err != nil {
 		return out
-	}
-	relevant := map[string]bool{
-		"rx_errors": true, "tx_errors": true, "rx_dropped": true, "tx_dropped": true,
-		"rx_crc_errors": true, "rx_length_errors": true, "rx_over_errors": true,
-		"rx_frame_errors": true, "rx_missed_errors": true, "rx_no_buffer_count": true,
-		"rx_align_errors": true, "rx_short_length_errors": true, "rx_long_length_errors": true,
-		"tx_missed_errors": true, "tx_carrier_errors": true, "tx_aborted_errors": true,
 	}
 	for _, e := range entries {
 		name := e.Name()
@@ -365,18 +390,14 @@ func parseEthtoolStats() map[string]interface{} {
 			strings.HasPrefix(name, "tun") {
 			continue
 		}
-		b, err := execBounded(2*time.Second, "ethtool", "-S", name)
-		if err != nil {
-			continue
-		}
 		stats := map[string]interface{}{}
-		for _, line := range strings.Split(string(b), "\n") {
-			parts := strings.SplitN(strings.TrimSpace(line), ":", 2)
-			if len(parts) != 2 || !relevant[strings.TrimSpace(parts[0])] {
-				continue
+		for _, c := range sysfsCounters {
+			p := "/sys/class/net/" + name + "/statistics/" + c
+			if b, err := os.ReadFile(p); err == nil {
+				if v, err := strconv.ParseUint(strings.TrimSpace(string(b)), 10, 64); err == nil {
+					stats[c] = v
+				}
 			}
-			v, _ := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, 64)
-			stats[strings.TrimSpace(parts[0])] = v
 		}
 		if len(stats) > 0 {
 			out[name] = stats
@@ -386,12 +407,17 @@ func parseEthtoolStats() map[string]interface{} {
 }
 
 func parseBridgeMdb() map[string]interface{} {
-	out := map[string]interface{}{}
 	b, err := execBounded(3*time.Second, "bridge", "mdb", "show")
 	if err != nil {
-		return out
+		return map[string]interface{}{}
 	}
-	for _, line := range strings.Split(string(b), "\n") {
+	return parseMdbOutput(string(b))
+}
+
+// parseMdbOutput parses `bridge mdb show` output into bridge → entries.
+func parseMdbOutput(text string) map[string]interface{} {
+	out := map[string]interface{}{}
+	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

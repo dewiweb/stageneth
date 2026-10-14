@@ -152,3 +152,63 @@ func TestLoginLimiter(t *testing.T) {
 		t.Fatalf("clientIP trusted spoofed XFF: %q", got)
 	}
 }
+
+func TestParseUciShow(t *testing.T) {
+	out := `network.loopback=interface
+network.loopback.device='lo'
+network.loopback.proto='static'
+network.lan=interface
+network.lan.ipaddr='192.168.1.1'
+garbage line no equals`
+	m := parseUciShow(out)
+	lb, ok := m["loopback"].(map[string]interface{})
+	if !ok {
+		t.Fatal("loopback missing")
+	}
+	if lb[".type"] != "interface" || lb["proto"] != "static" {
+		t.Errorf("loopback = %v", lb)
+	}
+	if m["lan"].(map[string]interface{})["ipaddr"] != "192.168.1.1" {
+		t.Error("lan ipaddr wrong")
+	}
+}
+
+func TestMdnsParseZone(t *testing.T) {
+	// dns-sd -Z escapes spaces in instance names as \032
+	zone := `; comment
+Stage\032Mixer._dante._tcp.local SRV 0 0 5000 mixer.local.
+Stage\032Mixer._dante._tcp.local TXT "version=1"
+mixer.local. A 192.168.20.5
+_services._dns-sd._udp.local. PTR Stage\032Mixer._dante._tcp.local.
+`
+	names, entries := mdnsParseZone([]byte(zone), "_dante._tcp", "local")
+	if len(names) != 1 || names[0] != "Stage Mixer" {
+		t.Fatalf("names = %v", names)
+	}
+	e := entries["Stage Mixer"]
+	if e["port"] != 5000 || e["hostname"] != "mixer.local" || e["ip"] != "192.168.20.5" {
+		t.Errorf("entry = %+v", e)
+	}
+	txt, _ := e["txt"].([]string)
+	if len(txt) != 1 || txt[0] != "version=1" {
+		t.Errorf("txt = %v", e["txt"])
+	}
+}
+
+func TestEscLabel(t *testing.T) {
+	if got := escLabel(`a"b\c`); got != `a\"b\\c` {
+		t.Errorf("escLabel = %q", got)
+	}
+	if got := escLabel("x\ny"); got != `x\ny` {
+		t.Errorf("escLabel newline = %q", got)
+	}
+}
+
+func TestParseLogTime(t *testing.T) {
+	if _, ok := parseLogTime("Dec  5 14:22:01 router log: something"); !ok {
+		t.Error("syslog ts not parsed")
+	}
+	if _, ok := parseLogTime(""); ok {
+		t.Error("empty line parsed")
+	}
+}

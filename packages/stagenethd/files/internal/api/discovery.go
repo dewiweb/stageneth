@@ -24,13 +24,27 @@ func mdnsParseZone(out []byte, serviceType, domain string) ([]string, map[string
 	ipRe := regexp.MustCompile(`^([^\s]+)\s+A\s+(\d+\.\d+\.\d+\.\d+)`)
 	ptrRe := regexp.MustCompile(`^([^\s]+)\s+PTR\s+(\S+)`)
 
+	// record names look like Name._type._proto.domain. — strip the
+	// type+domain suffix and unescape \032 so the UI shows the bare
+	// instance name, not the whole DNS record
+	instanceName := func(rec string) string {
+		n := strings.TrimSuffix(rec, ".")
+		for _, suf := range []string{"." + serviceType + "." + domain, "." + serviceType, "." + domain} {
+			if strings.HasSuffix(n, suf) {
+				n = strings.TrimSuffix(n, suf)
+				break
+			}
+		}
+		return strings.Trim(strings.ReplaceAll(n, "\\032", " "), "\"")
+	}
+
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, ";") {
 			continue
 		}
 		if m := srvRe.FindStringSubmatch(line); m != nil {
-			name := strings.Trim(strings.ReplaceAll(strings.TrimSuffix(strings.TrimSuffix(m[1], "."), "."+serviceType), "\\032", " "), "\"")
+			name := instanceName(m[1])
 			if entries[name] == nil {
 				entries[name] = map[string]interface{}{"name": name, "type": serviceType, "domain": domain}
 			}
@@ -45,7 +59,7 @@ func mdnsParseZone(out []byte, serviceType, domain string) ([]string, map[string
 			continue
 		}
 		if m := txtRe.FindStringSubmatch(line); m != nil {
-			name := strings.Trim(strings.ReplaceAll(strings.TrimSuffix(strings.TrimSuffix(m[1], "."), "."+serviceType), "\\032", " "), "\"")
+			name := instanceName(m[1])
 			if entries[name] == nil {
 				entries[name] = map[string]interface{}{"name": name, "type": serviceType, "domain": domain}
 			}
@@ -61,7 +75,7 @@ func mdnsParseZone(out []byte, serviceType, domain string) ([]string, map[string
 			continue
 		}
 		if m := ptrRe.FindStringSubmatch(line); m != nil {
-			name := strings.Trim(strings.ReplaceAll(strings.TrimSuffix(strings.TrimSuffix(m[2], "."), "."+serviceType), "\\032", " "), "\"")
+			name := instanceName(m[2])
 			if entries[name] == nil {
 				entries[name] = map[string]interface{}{"name": name, "type": serviceType, "domain": domain}
 			}
