@@ -1,11 +1,13 @@
 package api
 
 import (
+	context "context"
 	json "encoding/json"
 	fmt "fmt"
 	http "net/http"
 	exec "os/exec"
 	"stageneth/internal/ucifile"
+	time "time"
 )
 
 type presetService struct {
@@ -201,7 +203,9 @@ func applyPresetToUci(name string, services []string) (string, error) {
 	if err := saveStageneth(f); err != nil {
 		return "", err
 	}
-	out2, err := exec.Command("/usr/sbin/stagenethd", "apply").CombinedOutput()
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	out2, err := exec.CommandContext(ctx, "/usr/sbin/stagenethd", "apply").CombinedOutput()
 	return string(out2), err
 }
 

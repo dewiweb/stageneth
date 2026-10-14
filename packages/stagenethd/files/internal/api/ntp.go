@@ -1,12 +1,14 @@
 package api
 
 import (
+	context "context"
 	json "encoding/json"
 	http "net/http"
 	os "os"
 	exec "os/exec"
 	regexp "regexp"
 	strings "strings"
+	time "time"
 
 	"stageneth/internal/ucifile"
 )
@@ -187,7 +189,11 @@ func clockStatus() map[string]string {
 	}
 
 	source, stratum, offset := "-", "", ""
-	if out, err := exec.Command("ntpq", "-pn", "127.0.0.1").Output(); err == nil {
+	if out, err := func() ([]byte, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return exec.CommandContext(ctx, "ntpq", "-pn", "127.0.0.1").Output()
+	}(); err == nil {
 		for _, line := range strings.Split(string(out), "\n") {
 			if strings.HasPrefix(line, "*") {
 				if f := strings.Fields(line); len(f) >= 9 {

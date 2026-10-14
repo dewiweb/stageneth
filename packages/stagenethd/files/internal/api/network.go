@@ -1,6 +1,7 @@
 package api
 
 import (
+	context "context"
 	json "encoding/json"
 	fmt "fmt"
 	"net"
@@ -16,7 +17,11 @@ import (
 )
 
 func applyNetwork(w http.ResponseWriter, r *http.Request) {
-	out, err := exec.Command("/usr/sbin/stagenethd", "apply").CombinedOutput()
+	// hard bound — a hung apply would otherwise pin this handler and,
+	// via the engine flock, every subsequent apply
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "/usr/sbin/stagenethd", "apply").CombinedOutput()
 	if err != nil {
 		code := 500
 		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 3 {
@@ -37,7 +42,9 @@ func firstLine(s string) string {
 	return s
 }
 func previewNetwork(w http.ResponseWriter, r *http.Request) {
-	out, err := exec.Command("/usr/sbin/stagenethd", "preview").CombinedOutput()
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "/usr/sbin/stagenethd", "preview").CombinedOutput()
 	if err != nil {
 		respond(w, 500, map[string]string{"log": string(out)}, "preview failed")
 		return
@@ -46,8 +53,10 @@ func previewNetwork(w http.ResponseWriter, r *http.Request) {
 }
 func networkReload(w http.ResponseWriter, r *http.Request) {
 	for _, svc := range []string{"network", "firewall", "dnsmasq"} {
-		cmd := exec.Command("/etc/init.d/"+svc, "reload")
-		if err := cmd.Run(); err != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		err := exec.CommandContext(ctx, "/etc/init.d/"+svc, "reload").Run()
+		cancel()
+		if err != nil {
 			respond(w, 500, nil, svc+" reload failed")
 			return
 		}

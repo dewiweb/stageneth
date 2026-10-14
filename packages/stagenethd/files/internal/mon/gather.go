@@ -287,15 +287,24 @@ func parseIGMPSnooping() map[string]bool {
 
 // --- slow collectors (exec-based) --------------------------------------------
 
+// execBounded runs an external command with a hard timeout — a stuck
+// driver/init script must never freeze the collector goroutine.
+func execBounded(timeout time.Duration, name string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return exec.CommandContext(ctx, name, args...).CombinedOutput()
+}
+
 func serviceStatuses() map[string]bool {
 	out := map[string]bool{}
 	for _, svc := range []string{"network", "firewall", "dnsmasq", "stageneth-api", "nginx"} {
 		if svc == "firewall" {
-			b, _ := exec.Command("/etc/init.d/firewall", "status").Output()
+			b, _ := execBounded(3*time.Second, "/etc/init.d/firewall", "status")
 			out[svc] = strings.TrimSpace(string(b)) == "active"
 			continue
 		}
-		out[svc] = exec.Command("/etc/init.d/"+svc, "running").Run() == nil
+		_, err := execBounded(3*time.Second, "/etc/init.d/"+svc, "running")
+		out[svc] = err == nil
 	}
 	return out
 }
@@ -303,9 +312,7 @@ func serviceStatuses() map[string]bool {
 func parsePtpStatus() map[string]interface{} {
 	out := map[string]interface{}{"state": "unknown", "offset_ns": 0.0, "delay_ns": 0.0}
 	pmc := func(args ...string) ([]byte, error) {
-		c, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		return exec.CommandContext(c, "pmc", args...).CombinedOutput()
+		return execBounded(3*time.Second, "pmc", args...)
 	}
 	portOut, err := pmc("-u", "-b", "0", "GET PORT_DATA_SET")
 	if err != nil {
@@ -358,7 +365,7 @@ func parseEthtoolStats() map[string]interface{} {
 			strings.HasPrefix(name, "tun") {
 			continue
 		}
-		b, err := exec.Command("ethtool", "-S", name).CombinedOutput()
+		b, err := execBounded(2*time.Second, "ethtool", "-S", name)
 		if err != nil {
 			continue
 		}
@@ -380,7 +387,7 @@ func parseEthtoolStats() map[string]interface{} {
 
 func parseBridgeMdb() map[string]interface{} {
 	out := map[string]interface{}{}
-	b, err := exec.Command("bridge", "mdb", "show").CombinedOutput()
+	b, err := execBounded(3*time.Second, "bridge", "mdb", "show")
 	if err != nil {
 		return out
 	}

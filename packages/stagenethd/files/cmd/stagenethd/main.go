@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"stageneth/internal/engine"
 	"stageneth/internal/render"
@@ -13,7 +15,17 @@ import (
 )
 
 func run(name string, args ...string) error {
-	return exec.Command(name, args...).Run()
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, name, args...).Run()
+}
+
+// runBounded kills the command after timeout — a stuck ethtool/init
+// script must not hold the apply lock forever.
+func runBounded(timeout time.Duration, name string, args ...string) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	exec.CommandContext(ctx, name, args...).Run()
 }
 
 // tuneNics applies AV-friendly NIC settings on physical interfaces.
@@ -29,10 +41,10 @@ func tuneNics(avail map[string]bool) {
 			strings.Contains(iface, ".") {
 			continue
 		}
-		exec.Command("ethtool", "--set-eee", iface, "eee", "disabled").Run()
-		exec.Command("ethtool", "-G", iface, "rx", "4096", "tx", "4096").Run()
-		exec.Command("ethtool", "-C", iface, "rx-usecs", "0", "tx-usecs", "0").Run()
-		exec.Command("ethtool", "-K", iface, "gro", "off", "tso", "off", "lro", "off", "gso", "off").Run()
+		runBounded(2*time.Second, "ethtool", "--set-eee", iface, "eee", "disabled")
+		runBounded(2*time.Second, "ethtool", "-G", iface, "rx", "4096", "tx", "4096")
+		runBounded(2*time.Second, "ethtool", "-C", iface, "rx-usecs", "0", "tx-usecs", "0")
+		runBounded(2*time.Second, "ethtool", "-K", iface, "gro", "off", "tso", "off", "lro", "off", "gso", "off")
 	}
 }
 
