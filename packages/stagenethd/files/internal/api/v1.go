@@ -228,6 +228,18 @@ func v1UpsertSection(sectionType string, extraValidate func(vals map[string]stri
 				return
 			}
 		}
+		// one vlan_id = one broadcast domain — two services sharing a
+		// vlan would render colliding trunk subinterfaces
+		if sectionType == "service" {
+			if vid := vals["vlan_id"]; vid != "" {
+				for other, sv := range st.Services {
+					if other != name && sv["vlan_id"] == vid {
+						respond(w, 409, nil, "vlan_id "+vid+" already used by service "+other)
+						return
+					}
+				}
+			}
+		}
 		s := findSection(f, sectionType, name)
 		if s == nil {
 			f.Sections = append(f.Sections, ucifile.Section{Type: sectionType, Name: name})
@@ -279,7 +291,13 @@ func v1DeleteSection(sectionType string) http.HandlerFunc {
 }
 
 func v1ValidateService(vals map[string]string, st *stcfg.Config) error {
-	return validateFields(serviceFields, vals)
+	if len(vals) == 0 {
+		return fmt.Errorf("invalid body")
+	}
+	if err := validateFields(serviceFields, vals); err != nil {
+		return err
+	}
+	return nil
 }
 
 func v1ValidateBinding(vals map[string]string, st *stcfg.Config) error {

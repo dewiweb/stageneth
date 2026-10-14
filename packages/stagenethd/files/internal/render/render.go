@@ -83,6 +83,15 @@ func SwitchVendor(st *stcfg.Config) string {
 func servicePorts(st *stcfg.Config, svcName string, svc map[string]string, trunk string, avail map[string]bool) []string {
 	vlanID := validVlanID(svc["vlan_id"])
 	ports := []string{}
+	seen := map[string]bool{}
+	// dedupe: two bindings on the same iface+service must not emit
+	// duplicate ports (or duplicate device sections downstream)
+	add := func(p string) {
+		if !seen[p] {
+			seen[p] = true
+			ports = append(ports, p)
+		}
+	}
 	for _, bcfg := range st.SortedBindings() {
 		if bcfg["service"] == svcName {
 			iface := bcfg["interface"]
@@ -91,9 +100,9 @@ func servicePorts(st *stcfg.Config, svcName string, svc map[string]string, trunk
 			}
 			iface = fallbackIface(iface, avail)
 			if svc["untagged"] == "1" {
-				ports = append(ports, iface)
+				add(iface)
 			} else {
-				ports = append(ports, iface+"."+vlanID)
+				add(iface + "." + vlanID)
 			}
 		}
 	}
