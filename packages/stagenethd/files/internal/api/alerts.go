@@ -5,7 +5,6 @@ import (
 	fmt "fmt"
 	http "net/http"
 	os "os"
-	exec "os/exec"
 	sort "sort"
 	strconv "strconv"
 	strings "strings"
@@ -45,7 +44,7 @@ func alertsList(w http.ResponseWriter, r *http.Request) {
 		limit = 500
 	}
 	lines := []string{}
-	out, err := exec.Command("logread", "-l", "500").CombinedOutput()
+	out, err := outBounded(10*time.Second, "logread", "-l", "500")
 	if err == nil || len(out) > 0 {
 		for _, line := range strings.Split(string(out), "\n") {
 			if line = strings.TrimSpace(line); line != "" {

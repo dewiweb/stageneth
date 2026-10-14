@@ -173,22 +173,8 @@ func changePassword(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- user management (tech only) ---------------------------------------------
-
-// lastTech reports whether name is the only tech-role account — it must
-// never be demoted or deleted or the box loses all management access.
-func lastTech(name string) bool {
-	techs := 0
-	for _, u := range usersDB.List() {
-		if u[1] == "tech" {
-			if u[0] == name {
-				techs++
-			} else {
-				return false // another tech exists
-			}
-		}
-	}
-	return techs == 1
-}
+// The last-tech invariant is enforced atomically inside auth.Users —
+// a handler-side check would be racy across concurrent requests.
 
 func usersList(w http.ResponseWriter, r *http.Request) {
 	var out []map[string]string
@@ -206,10 +192,6 @@ func usersSet(w http.ResponseWriter, r *http.Request) {
 	}
 	if json.NewDecoder(r.Body).Decode(&req) != nil || req.Username == "" || req.Password == "" {
 		respond(w, 400, nil, "invalid user request")
-		return
-	}
-	if req.Role != "tech" && lastTech(req.Username) {
-		respond(w, 400, nil, "cannot demote the last tech account")
 		return
 	}
 	if err := usersDB.Set(req.Username, req.Role, req.Password); err != nil {
@@ -233,10 +215,6 @@ func usersDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	if se, ok := sessionOf(r); ok && se.User == req.Username {
 		respond(w, 400, nil, "cannot delete own account")
-		return
-	}
-	if lastTech(req.Username) {
-		respond(w, 400, nil, "cannot delete the last tech account")
 		return
 	}
 	if err := usersDB.Remove(req.Username); err != nil {

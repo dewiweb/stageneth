@@ -7,6 +7,7 @@ import (
 	regexp "regexp"
 	"stageneth/internal/ucifile"
 	strings "strings"
+	time "time"
 )
 
 // rawConfigs is the allowlist for expert-mode raw UCI editing.
@@ -20,7 +21,7 @@ var uciNameRe = regexp.MustCompile(`^[a-zA-Z0-9_@.\[\]-]+$`)
 // uciCommand wraps exec.Command("uci", ...) pinning the config dir so the
 // daemon can run against a non-/etc/config tree (tests, recovery mounts).
 func uciCommand(args ...string) *exec.Cmd {
-	return exec.Command("uci", append([]string{"-c", ucifile.ConfigDir}, args...)...)
+	return boundedCmd(10*time.Second, "uci", append([]string{"-c", ucifile.ConfigDir}, args...)...)
 }
 
 func validUciName(s string) bool {
@@ -55,9 +56,9 @@ func rawCommit(cfg string) error {
 		return err
 	}
 	if cfg == "system" {
-		exec.Command("/etc/init.d/system", "reload").Run()
+		runBounded(10*time.Second, initDir()+"/system", "reload")
 		if name, err := uciCommand("-q", "get", "system.@system[0].hostname").Output(); err == nil && len(name) > 0 {
-			exec.Command("hostname", strings.TrimSpace(string(name))).Run()
+			runBounded(5*time.Second, "hostname", strings.TrimSpace(string(name)))
 		}
 	}
 	return nil

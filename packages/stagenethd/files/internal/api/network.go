@@ -64,7 +64,7 @@ func previewNetwork(w http.ResponseWriter, r *http.Request) {
 func networkReload(w http.ResponseWriter, r *http.Request) {
 	for _, svc := range []string{"network", "firewall", "dnsmasq"} {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		err := exec.CommandContext(ctx, "/etc/init.d/"+svc, "reload").Run()
+		err := exec.CommandContext(ctx, initDir()+"/"+svc, "reload").Run()
 		cancel()
 		if err != nil {
 			respond(w, 500, nil, svc+" reload failed")
@@ -100,7 +100,7 @@ func pingFromRouter(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, "invalid ip")
 		return
 	}
-	out, err := exec.Command("ping", "-c", "1", "-W", "2", ip).CombinedOutput()
+	out, err := outBounded(5*time.Second, "ping", "-c", "1", "-W", "2", ip)
 	respond(w, 200, map[string]interface{}{"ok": err == nil, "output": string(out)}, "ping done")
 }
 
@@ -287,14 +287,14 @@ func firstbootStatus(w http.ResponseWriter, r *http.Request) {
 // provisioning, not authentication — the API never reads /etc/shadow.
 func setConsolePassword(password string) {
 	for _, args := range [][]string{{"-a", "sha512"}, {}} {
-		cmd := exec.Command("chpasswd", args...)
+		cmd := boundedCmd(10*time.Second, "chpasswd", args...)
 		cmd.Stdin = strings.NewReader("root:" + password + "\n")
 		if err := cmd.Run(); err == nil {
 			return
 		}
 	}
 	// last resort: interactive passwd fed twice on stdin
-	cmd := exec.Command("passwd", "root")
+	cmd := boundedCmd(10*time.Second, "passwd", "root")
 	cmd.Stdin = strings.NewReader(password + "\n" + password + "\n")
 	cmd.Run()
 }
@@ -311,7 +311,7 @@ func grantSession(w http.ResponseWriter, user, role string) bool {
 }
 
 func wizard(w http.ResponseWriter, r *http.Request) {
-	if firstbootDone() {
+	if firstbootDone() || usersDB.HasUsers() {
 		respond(w, 403, nil, "wizard already completed")
 		return
 	}
@@ -328,6 +328,12 @@ func wizard(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, err.Error())
 		return
 	}
+	// mark firstboot done BEFORE anything else can fail — while done is
+	// false an unauthenticated retry could overwrite the admin password
+	if !markFirstbootDone() {
+		respond(w, 500, nil, "config save failed")
+		return
+	}
 	setConsolePassword(req.Password)
 	if req.Preset == "" {
 		req.Preset = "base"
@@ -337,10 +343,6 @@ func wizard(w http.ResponseWriter, r *http.Request) {
 		respond(w, 500, map[string]string{"log": out}, "network apply failed")
 		return
 	}
-	if !markFirstbootDone() {
-		respond(w, 500, nil, "config save failed")
-		return
-	}
 	if !grantSession(w, "admin", "tech") {
 		return
 	}
@@ -348,7 +350,7 @@ func wizard(w http.ResponseWriter, r *http.Request) {
 }
 
 func wizardSkip(w http.ResponseWriter, r *http.Request) {
-	if firstbootDone() {
+	if firstbootDone() || usersDB.HasUsers() {
 		respond(w, 403, nil, "wizard already completed")
 		return
 	}
@@ -363,11 +365,11 @@ func wizardSkip(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, err.Error())
 		return
 	}
-	setConsolePassword(req.Password)
 	if !markFirstbootDone() {
 		respond(w, 500, nil, "config save failed")
 		return
 	}
+	setConsolePassword(req.Password)
 	if !grantSession(w, "admin", "tech") {
 		return
 	}

@@ -27,6 +27,7 @@ var (
 	ErrBadRole      = errors.New("invalid role")
 	ErrBadName      = errors.New("invalid username")
 	ErrWeakPassword = errors.New("password too short")
+	ErrLastTech     = errors.New("cannot remove or demote the last tech account")
 )
 
 // MinPasswordLen is enforced on every password write path.
@@ -158,6 +159,9 @@ func (u *Users) Set(name, role, password string) error {
 		return err
 	}
 	s := u.find(f, name)
+	if s != nil && s.Get("role") == "tech" && role != "tech" && !u.hasOtherTech(f, name) {
+		return ErrLastTech
+	}
 	if s == nil {
 		f.Sections = append(f.Sections, ucifile.Section{Type: "user", Name: name})
 		s = &f.Sections[len(f.Sections)-1]
@@ -190,7 +194,20 @@ func (u *Users) SetPassword(name, password string) error {
 	return u.save(f)
 }
 
-// Remove deletes a user. Refuses to remove the last remaining user.
+// hasOtherTech reports whether another account with the tech role
+// exists. Caller must hold u.mu and pass a freshly loaded file — this
+// keeps the last-tech invariant atomic with the mutation.
+func (u *Users) hasOtherTech(f *ucifile.File, exclude string) bool {
+	for _, s := range f.Sections {
+		if s.Type == "user" && s.Name != exclude && s.Get("role") == "tech" {
+			return true
+		}
+	}
+	return false
+}
+
+// Remove deletes a user. Refuses to remove the last remaining user or
+// the last tech account — either would leave the box unmanageable.
 func (u *Users) Remove(name string) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -204,8 +221,12 @@ func (u *Users) Remove(name string) error {
 			users++
 		}
 	}
-	if u.find(f, name) == nil {
+	s := u.find(f, name)
+	if s == nil {
 		return ErrUserNotFound
+	}
+	if s.Get("role") == "tech" && !u.hasOtherTech(f, name) {
+		return ErrLastTech
 	}
 	if users <= 1 {
 		return errors.New("cannot remove the last user")

@@ -1,7 +1,6 @@
 package api
 
 import (
-	context "context"
 	json "encoding/json"
 	http "net/http"
 	os "os"
@@ -152,10 +151,10 @@ func ntpSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uciCommand("-q", "commit", "system").Run()
-	if _, err := os.Stat("/etc/init.d/sysntpd"); err == nil {
-		exec.Command("/etc/init.d/sysntpd", "restart").Run()
+	if _, err := os.Stat(initDir() + "/sysntpd"); err == nil {
+		runBounded(10*time.Second, initDir()+"/sysntpd", "restart")
 	} else {
-		exec.Command("killall", "ntpd").Run()
+		runBounded(5*time.Second, "killall", "ntpd")
 		exec.Command("ntpd", "-n", "-N", "-S", "/usr/sbin/ntpd-hotplug").Start()
 	}
 	audit("ntp_set", strings.Join(servers, " "), r)
@@ -181,7 +180,7 @@ func clockStatus(peers bool) map[string]string {
 		}
 	}
 	env := append(os.Environ(), "TZ="+tz)
-	cmd := exec.Command("date", "+%Y-%m-%d %H:%M:%S %Z")
+	cmd := boundedCmd(2*time.Second, "date", "+%Y-%m-%d %H:%M:%S %Z")
 	cmd.Env = env
 	out, _ := cmd.Output()
 	fields := strings.Fields(string(out))
@@ -192,11 +191,7 @@ func clockStatus(peers bool) map[string]string {
 
 	source, stratum, offset := "-", "", ""
 	if peers {
-		if out, err := func() ([]byte, error) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			return exec.CommandContext(ctx, "ntpq", "-pn", "127.0.0.1").Output()
-		}(); err == nil {
+		if out, err := outBounded(5*time.Second, "ntpq", "-pn", "127.0.0.1"); err == nil {
 			for _, line := range strings.Split(string(out), "\n") {
 				if strings.HasPrefix(line, "*") {
 					if f := strings.Fields(line); len(f) >= 9 {

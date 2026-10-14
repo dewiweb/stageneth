@@ -71,6 +71,34 @@ func TestUsersLifecycle(t *testing.T) {
 	}
 }
 
+func TestUsersLastTechInvariant(t *testing.T) {
+	u := NewUsers(filepath.Join(t.TempDir(), "stagenethd"))
+	u.Set("admin", "tech", "pw12345678")
+	u.Set("ops", "operator", "pw12345678")
+
+	if err := u.Set("admin", "operator", "pw12345678"); err != ErrLastTech {
+		t.Errorf("demote last tech: got %v, want ErrLastTech", err)
+	}
+	if err := u.Remove("admin"); err != ErrLastTech {
+		t.Errorf("delete last tech: got %v, want ErrLastTech", err)
+	}
+	if err := u.Remove("ops"); err != nil {
+		t.Fatal(err)
+	}
+	// add a second tech — admin is now demotable and removable
+	u.Set("backup", "tech", "pw12345678")
+	if err := u.Set("admin", "operator", "pw12345678"); err != nil {
+		t.Errorf("demote with backup tech: %v", err)
+	}
+	if err := u.Remove("admin"); err != nil {
+		t.Errorf("remove with backup tech: %v", err)
+	}
+	// backup is now the last tech again
+	if err := u.Remove("backup"); err != ErrLastTech {
+		t.Errorf("last tech again: got %v, want ErrLastTech", err)
+	}
+}
+
 func TestSessions(t *testing.T) {
 	s := NewStore()
 	id, err := s.Create("admin", "tech")

@@ -3,7 +3,6 @@ package api
 import (
 	http "net/http"
 	os "os"
-	exec "os/exec"
 	sort "sort"
 	strconv "strconv"
 	strings "strings"
@@ -83,7 +82,7 @@ func logsGet(w http.ResponseWriter, r *http.Request) {
 	if limit > 1000 {
 		limit = 1000
 	}
-	out, err := exec.Command("logread", "-l", "1000").CombinedOutput()
+	out, err := outBounded(10*time.Second, "logread", "-l", "1000")
 	if err != nil {
 		respond(w, 500, nil, "logread failed")
 		return
