@@ -1,5 +1,9 @@
 name: Build and Release StageNeth
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -76,10 +80,24 @@ jobs:
     env:
       RUNTIME: docker
       TARGET: ${{ inputs.target || 'x86_64' }}
+      BUILD_JOBS: 4
       STAGENETH_BUILD_ROOT: ${{ github.workspace }}/.build
       TMPDIR: /tmp
       XDG_DATA_HOME: ${{ github.workspace }}/.build/xdg
     steps:
+      # ubuntu-latest has ~14 GB free; a full OpenWrt build peaks well
+      # above that — reclaim the preinstalled SDK/toolchain caches first.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -128,6 +146,11 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: bin/targets/*/*/*
+          # OS images under targets/, plus the .ipk packages (they
+          # install on any stock OpenWrt router of matching arch —
+          # see docs/build.md "Routeurs OpenWrt existants")
+          files: |
+            bin/targets/*/*/*
+            bin/packages/**/*.ipk
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
