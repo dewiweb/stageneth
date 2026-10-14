@@ -204,29 +204,12 @@ func restoreConfig(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, nil, "config restored")
 }
 
-// firstbootReset clears the firstboot_done flag so the wizard runs again.
-// Typed replacement for the old generic uci-write path.
-func firstbootReset(w http.ResponseWriter, r *http.Request) {
-	f, _, err := loadStageneth()
-	if err != nil {
-		respond(w, 500, nil, "config load failed")
-		return
-	}
-	if s := findSection(f, "stageneth", "globals"); s != nil {
-		s.Set("firstboot_done", "0")
-	} else {
-		f.Sections = append([]ucifile.Section{{Type: "stageneth", Name: "globals",
-			Options: []ucifile.Option{{Name: "firstboot_done", Value: "0"}}}}, f.Sections...)
-	}
-	if err := saveStageneth(f); err != nil {
-		respond(w, 500, nil, "config save failed")
-		return
-	}
-	audit("firstboot_reset", "", r)
-	respond(w, 200, nil, "firstboot reset")
-}
-
+// firstboot is one-way: once an account exists the wizard refuses to
+// run again (an unauthenticated re-run could overwrite the admin
+// password). Re-provisioning is done via the presets endpoint.
 func markFirstbootDone() bool {
+	stagenethFileMu.Lock()
+	defer stagenethFileMu.Unlock()
 	f, _, err := loadStageneth()
 	if err != nil {
 		return false

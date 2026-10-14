@@ -85,10 +85,24 @@ func TestV1DeleteGuards(t *testing.T) {
 	if rr.Code != 400 {
 		t.Error("mgmt deletion allowed")
 	}
-	// real delete works
+	// service with a binding cannot be deleted (dangling binding)
 	req = httptest.NewRequest("PUT", "/api/v1/services/tmp", strings.NewReader(`{"vlan_id":"30"}`))
 	req.SetPathValue("name", "tmp")
 	v1UpsertSection("service", v1ValidateService)(httptest.NewRecorder(), req)
+	req = httptest.NewRequest("PUT", "/api/v1/bindings/b1", strings.NewReader(`{"interface":"eth0","service":"tmp"}`))
+	req.SetPathValue("name", "b1")
+	v1UpsertSection("binding", v1ValidateBinding)(httptest.NewRecorder(), req)
+	req = httptest.NewRequest("DELETE", "/api/v1/services/tmp", nil)
+	req.SetPathValue("name", "tmp")
+	rr = httptest.NewRecorder()
+	v1DeleteSection("service")(rr, req)
+	if rr.Code != 409 {
+		t.Errorf("delete with bound service: got %d, want 409", rr.Code)
+	}
+	// delete the binding, then the service goes
+	req = httptest.NewRequest("DELETE", "/api/v1/bindings/b1", nil)
+	req.SetPathValue("name", "b1")
+	v1DeleteSection("binding")(httptest.NewRecorder(), req)
 	req = httptest.NewRequest("DELETE", "/api/v1/services/tmp", nil)
 	req.SetPathValue("name", "tmp")
 	rr = httptest.NewRecorder()
@@ -99,6 +113,27 @@ func TestV1DeleteGuards(t *testing.T) {
 	b, _ := os.ReadFile(StagenethConfig)
 	if strings.Contains(string(b), "'tmp'") {
 		t.Error("section not deleted")
+	}
+}
+
+func TestV1ForwardingValidation(t *testing.T) {
+	v1Env(t)
+	h := v1UpsertSection("forwarding", v1ValidateForwarding)
+	put := func(body string) int {
+		req := httptest.NewRequest("PUT", "/api/v1/forwardings/f1", strings.NewReader(body))
+		req.SetPathValue("name", "f1")
+		rr := httptest.NewRecorder()
+		h(rr, req)
+		return rr.Code
+	}
+	if c := put(`{}`); c != 400 {
+		t.Errorf("empty forwarding accepted: %d", c)
+	}
+	if c := put(`{"src":"mgmt","dest":"ghost"}`); c != 400 {
+		t.Errorf("forwarding to unknown service accepted: %d", c)
+	}
+	if c := put(`{"src":"mgmt","dest":"mgmt","enabled":"1"}`); c != 200 {
+		t.Errorf("valid forwarding rejected: %d", c)
 	}
 }
 

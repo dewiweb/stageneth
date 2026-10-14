@@ -76,17 +76,8 @@ var sessionMethods = {
       }
     },
     async resetWizard() {
-      if (!confirm('Relancer le wizard ? Cela déconnectera et réinitialisera le flag firstboot.')) return;
-      try {
-        await api('/api/v1/firstboot/reset', 'POST');
-        this.logout();
-        this.showWizard = true;
-        this.wizardStep = 1;
-      } catch (e) {
-        this.toast('Reset wizard failed: ' + e.message, 'error');
-      }
-    },
-    async skipWizard() {
+      this.toast('Le wizard ne peut pas être relancé. Utilisez l\'onglet Réseau pour ré-appliquer un preset.', 'error');
+    },    async skipWizard() {
       if (this.wizardPassword.length < 8) { this.error = 'Mot de passe trop court'; return; }
       if (this.wizardPassword !== this.wizardConfirmPassword) { this.error = 'Les mots de passe ne correspondent pas'; return; }
       if (!confirm('Ignorer le wizard ? Aucun preset ne sera appliqué.')) return;

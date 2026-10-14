@@ -168,8 +168,10 @@ func applyPresetToUci(name string, services []string) (string, error) {
 			}
 		}
 	}
+	stagenethFileMu.Lock()
 	f, _, err := loadStageneth()
 	if err != nil {
+		stagenethFileMu.Unlock()
 		return "", err
 	}
 	// keep globals + logging; drop service/binding/forwarding (the
@@ -224,7 +226,9 @@ func applyPresetToUci(name string, services []string) (string, error) {
 		}})
 	}
 	f.Sections = out
-	if err := saveStageneth(f); err != nil {
+	err = saveStageneth(f)
+	stagenethFileMu.Unlock() // released before the (flocked) apply exec
+	if err != nil {
 		return "", err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)

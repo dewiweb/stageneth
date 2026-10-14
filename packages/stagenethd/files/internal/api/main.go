@@ -60,7 +60,9 @@ func Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/network/reload", requireTech(networkReload))
 	mux.HandleFunc("POST /api/v1/snmp/walk", requireTech(snmpWalk))
 	mux.HandleFunc("POST /api/v1/mdns/discover", requireTech(mdnsDiscover))
-	mux.HandleFunc("POST /api/v1/firstboot/reset", requireTech(firstbootReset))
+	// firstboot is one-way: the wizard refuses once any account exists,
+	// so a "reset" flag would only confuse. Preset re-application lives
+	// at POST /api/v1/presets/{name}/apply.
 	mux.HandleFunc("GET /api/v1/backup", requireTech(backupConfig))
 	mux.HandleFunc("POST /api/v1/restore", requireTech(restoreConfig))
 

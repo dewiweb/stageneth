@@ -11,6 +11,7 @@ import (
 	sort "sort"
 	strconv "strconv"
 	strings "strings"
+	sync "sync"
 	time "time"
 
 	"stageneth/internal/stcfg"
@@ -19,6 +20,10 @@ import (
 
 // StagenethConfig is the source-of-truth config file path.
 var StagenethConfig = filepath.Join(ucifile.ConfigDir, "stageneth")
+
+// stagenethFileMu serializes read-modify-write cycles on the stageneth
+// config file — concurrent PUTs would otherwise lose each other's edits.
+var stagenethFileMu sync.Mutex
 
 // --- validation ---------------------------------------------------------------
 
@@ -184,6 +189,8 @@ func v1SetGlobals(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, nil, err.Error())
 		return
 	}
+	stagenethFileMu.Lock()
+	defer stagenethFileMu.Unlock()
 	f, _, err := loadStageneth()
 	if err != nil {
 		respond(w, 500, nil, "config load failed")
@@ -218,6 +225,8 @@ func v1UpsertSection(sectionType string, extraValidate func(vals map[string]stri
 			respond(w, 400, nil, "invalid body")
 			return
 		}
+		stagenethFileMu.Lock()
+		defer stagenethFileMu.Unlock()
 		f, st, err := loadStageneth()
 		if err != nil {
 			respond(w, 500, nil, "config load failed")
@@ -263,10 +272,22 @@ func v1DeleteSection(sectionType string) http.HandlerFunc {
 			respond(w, 400, nil, "the mgmt service cannot be deleted")
 			return
 		}
-		f, _, err := loadStageneth()
+		stagenethFileMu.Lock()
+		defer stagenethFileMu.Unlock()
+		f, st, err := loadStageneth()
 		if err != nil {
 			respond(w, 500, nil, "config load failed")
 			return
+		}
+		if sectionType == "service" {
+			// bindings referencing this service would dangle — silently
+			// dead today, resurrected if the name is ever reused
+			for bn, bv := range st.Bindings {
+				if bv["service"] == name {
+					respond(w, 409, nil, "service "+name+" still bound by "+bn)
+					return
+				}
+			}
 		}
 		out := f.Sections[:0]
 		found := false
@@ -323,11 +344,14 @@ func v1ValidateBinding(vals map[string]string, st *stcfg.Config) error {
 }
 
 func v1ValidateForwarding(vals map[string]string, st *stcfg.Config) error {
+	if len(vals) == 0 {
+		return fmt.Errorf("invalid body")
+	}
 	for k, v := range vals {
 		switch k {
 		case "src", "dest":
-			if !nameRe.MatchString(v) {
-				return fmt.Errorf("invalid %s %q", k, v)
+			if _, ok := st.Services[v]; !ok {
+				return fmt.Errorf("unknown service %q for %s", v, k)
 			}
 		case "enabled":
 			if !validBool(v) {
@@ -373,6 +397,8 @@ func v1SetLogging(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	stagenethFileMu.Lock()
+	defer stagenethFileMu.Unlock()
 	f, _, err := loadStageneth()
 	if err != nil {
 		respond(w, 500, nil, "config load failed")
