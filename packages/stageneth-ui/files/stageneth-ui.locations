@@ -8,4 +8,9 @@ location / {
     ssi on;
     ssi_silent_errors on;
     try_files $uri $uri/ /index.html;
+    # defense-in-depth: self-hosted assets only. unsafe-eval is required
+    # by Vue's in-DOM template compiler, unsafe-inline by Tailwind JIT
+    # and v-bind:style — the policy still blocks external script loads
+    # and injected <script>/<style> markup.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
 }
