@@ -46,6 +46,24 @@ TARGET=nanopi_r5s ./build-stageneth.sh
 | `linksys_e8450` | Linksys E8450 / Belkin RT3200 (MT7622) | 4+1× 1G | classique d'occasion |
 | `dynalink_dl-wrx36` | Dynalink DL-WRX36 (IPQ8072A) | 4+1× 1G | quad-core, marché US |
 
+### Professionnel / industriel
+
+| `TARGET` | Matériel | Ports | Remarques |
+|---|---|---|---|
+| `mikrotik_rb5009` | MikroTik RB5009U(G/P)+S+IN | 7×1G + 2.5G + 10G SFP+ | fanless, kit rack 19″ ; la variante PoE alimente des endpoints Dante |
+| `mikrotik_760igs` | MikroTik hEX S (MT7621) | 5×1G + SFP | ~60 EUR, banc pro entrée de gamme (mipsle) |
+| `zyxel_xgs1250` | Zyxel XGS1250-12 (RTL9302B) | 8×1G + 3×2.5G + SFP+ | **switch géré** — StageNeth tourne dans le switch AV lui-même |
+| `hpe_1920_48g_poe` | HPE 1920-48G-PoE+ (RTL8393) | 48×1G PoE + 4×SFP | switch d'accès entreprise 48 ports |
+| `panasonic_m48eg` | Panasonic M48EG-PN28480K | 48×1G + 4×SFP+ | switch broadcast AVoIP (écosystème KAIROS) |
+
+Tout PC industriel fanless/DIN-rail x86-64 (OnLogic, Beckhoff, Axiomtek,
+Moxa…) exécute directement l'image `x86_64` — aucune cible dédiée n'est
+nécessaire. MikroTik RB5009 = la meilleure option pro/rackable (~220 EUR).
+
+⚠️ Les cibles `realtek` (switches managés) sont supportées par OpenWrt
+24.10 mais la couche switch est plus jeune — à valider sur banc réel
+avant production.
+
 Le daemon Go est `CGO_ENABLED=0` et n'utilise que des API Linux portables
 (AF_PACKET, netlink, sysfs) : aucune modification de code n'est requise
 pour une nouvelle cible.

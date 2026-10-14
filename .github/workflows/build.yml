@@ -26,6 +26,11 @@ on:
           - xiaomi_ax3000t
           - linksys_e8450
           - dynalink_dl-wrx36
+          - mikrotik_rb5009
+          - mikrotik_760igs
+          - zyxel_xgs1250
+          - hpe_1920_48g_poe
+          - panasonic_m48eg
 
 jobs:
   test:

@@ -16,5 +16,11 @@ REPO_CHANNEL=dev
 #   xiaomi_ax3000t     — Xiaomi AX3000T    (4x 1G, ~40 EUR)
 #   linksys_e8450      — Linksys E8450 / Belkin RT3200 (4+1x 1G)
 #   dynalink_dl-wrx36  — Dynalink DL-WRX36 (IPQ8072A, 4+1x 1G)
+# Professionnel / industriel :
+#   mikrotik_rb5009    — MikroTik RB5009 (7x1G + 2.5G + 10G SFP+, rackable)
+#   mikrotik_760igs    — MikroTik hEX S (5x 1G + SFP)
+#   zyxel_xgs1250      — Zyxel XGS1250-12 : switch géré 2.5G/10G/SFP+
+#   hpe_1920_48g_poe   — HPE 1920-48G PoE+ : switch 48 ports PoE
+#   panasonic_m48eg    — Panasonic M48EG : switch broadcast AVoIP
 TARGET=x86_64
 BUILD_SEMVER_SUFFIX=-beta.19
