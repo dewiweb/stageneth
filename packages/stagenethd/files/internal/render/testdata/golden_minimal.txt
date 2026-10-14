@@ -53,6 +53,7 @@ config dhcp 'svc_mgmt'
 ### umdns
 config umdns 'umdns'
 	option enabled '1'
+	option jail '1'
 	list network 'svc_mgmt'
 
 ### mdns_repeater

@@ -219,27 +219,18 @@ config rule 'allow_syslog_st2110'
 config forwarding 'dante_to_aes67'
 	option src 'dante'
 	option dest 'aes67'
-	option enabled '1'
-
-config forwarding 'guest_to_mgmt_off'
-	option src 'guest'
-	option dest 'mgmt'
-	option enabled '0'
 
 config forwarding 'mgmt_to_aes67'
 	option src 'mgmt'
 	option dest 'aes67'
-	option enabled '1'
 
 config forwarding 'mgmt_to_dante'
 	option src 'mgmt'
 	option dest 'dante'
-	option enabled '1'
 
 config forwarding 'mgmt_to_st2110'
 	option src 'mgmt'
 	option dest 'st2110'
-	option enabled '1'
 
 ### dhcp
 config dhcp 'svc_aes67'
@@ -290,6 +281,7 @@ config rsyslog 'syslog'
 ### umdns
 config umdns 'umdns'
 	option enabled '1'
+	option jail '1'
 	list network 'svc_aes67'
 	list network 'svc_dante'
 	list network 'svc_mgmt'

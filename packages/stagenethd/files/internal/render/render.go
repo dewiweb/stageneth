@@ -269,10 +269,15 @@ func Firewall(st *stcfg.Config) []ucifile.Section {
 	sort.Strings(fwdNames)
 	for _, name := range fwdNames {
 		fcfg := st.Forwardings[name]
+		// disabled forwardings are omitted entirely rather than emitted
+		// with option enabled '0' — fw4's forwarding schema does not
+		// reliably honor it, and an absent section is unambiguous
+		if fcfg["enabled"] != "1" {
+			continue
+		}
 		out = append(out, sec("forwarding", name,
 			opt("src", fcfg["src"]),
 			opt("dest", fcfg["dest"]),
-			opt("enabled", fcfg["enabled"]),
 		))
 	}
 	for _, s := range st.ServiceNames() {
@@ -283,7 +288,6 @@ func Firewall(st *stcfg.Config) []ucifile.Section {
 		out = append(out, sec("forwarding", fwd,
 			opt("src", "mgmt"),
 			opt("dest", s),
-			opt("enabled", "1"),
 		))
 	}
 	return out
@@ -373,7 +377,9 @@ if ($fromhost-ip != "127.0.0.1" and $fromhost-ip != "::1") then {
 
 // Umdns renders the full /etc/config/umdns file.
 func Umdns(st *stcfg.Config) []ucifile.Section {
-	opts := []ucifile.Option{opt("enabled", "1")}
+	// jail '1' keeps stock OpenWrt sandboxing — a fullOwner render must
+	// not silently drop the packaged hardening
+	opts := []ucifile.Option{opt("enabled", "1"), opt("jail", "1")}
 	for _, name := range st.ServiceNames() {
 		if name == "guest" {
 			continue
